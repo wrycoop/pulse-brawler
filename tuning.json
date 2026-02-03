@@ -1,114 +1,20 @@
 {
-  "dummy": {
-    "guard": "none",
-    "hitReaction": "punishCounter"
-  },
-  "movement": {
-    "playerSpeed": 275,
-    "knockbackDamping": 0.95,
-    "stickDeadzone": 0.1,
-    "stickCurve": 1.5
-  },
   "lean": {
     "maxLean": 20,
     "leanResponse": 0.15,
     "pullStrength": 0.5,
     "baseDamping": 0.85
   },
-  "attacks": {
-    "jab": {
-      "force": 600,
-      "reach": 0.9,
-      "angle": 0,
-      "stepDistance": 20,
-      "stepFrames": 6,
-      "blockKnockback": 0.2,
-      "blockStepRetain": 0.2,
-      "parryKnockback": 50,
-      "parryAngle": 0,
-      "parryStunFrames": 30,
-      "dizzyAmount": 35
-    },
-    "hook": {
-      "force": 600,
-      "reach": 0.9,
-      "angle": 90,
-      "stepDistance": 15,
-      "stepFrames": 6,
-      "sweepStart": -60,
-      "sweepEnd": 60,
-      "sweepFrames": 6,
-      "stepLateral": 0.3,
-      "blockKnockback": 0.5,
-      "parryKnockback": 200,
-      "parryAngle": 110,
-      "parryStunFrames": 30,
-      "dizzyAmount": 35
-    },
-    "kick": {
-      "force": 1200,
-      "reach": 1.1,
-      "angle": 0,
-      "stepDistance": 30,
-      "stepFrames": 9,
-      "blockKnockback": 1,
-      "parryKnockback": 50,
-      "parryAngle": 180,
-      "parryStunFrames": 30,
-      "dizzyAmount": 0
-    }
+  "movement": {
+    "stickDeadzone": 0.1,
+    "stickCurve": 1.5
   },
-  "timing": {
-    "startupFrames": 6,
-    "activeFrames": 6,
-    "recoveryFrames": 12,
-    "finisherRecoveryFrames": 24,
-    "cooldownFrames": 9
-  },
-  "combat": {
-    "blockstunFrames": 9,
-    "parryStep": 10
-  },
-  "combo": {
-    "maxChain": 3,
-    "finisherForceMultiplier": 1.25,
-    "dizzyKnockbackMultiplier": 3,
-    "dizzyFrames": 180,
-    "comboResetFrames": 60,
-    "dizzyThreshold": 100,
-    "dizzyTimeout": 120,
-    "dizzyTipForce": 400,
-    "dizzyInputForce": 1000
+  "attack": {
+    "range": 100,
+    "force": 15,
+    "frames": 15
   },
   "arena": {
-    "strikeRange": 120
-  },
-  "grapple": {
-    "grappleSystem": "sharedFulcrum",
-    "sharedMassRatio": 0.8,
-    "range": 60,
-    "holdFrames": 10,
-    "holdDistanceMin": 60,
-    "holdDistanceMax": 100,
-    "throwForce": 1000,
-    "angularAccel": 8,
-    "angularDrag": 0.8,
-    "velocityThreshold": 10,
-    "grappleMoveSpeed": 2,
-    "backDrift": 7,
-    "backDriftAngle": 45,
-    "pushReposition": 1,
-    "forwardDeadZone": 0.05,
-    "backDeadZone": 0.95,
-    "passiveDrift": 1,
-    "driftFriction": 0.8,
-    "maxSpins": 4,
-    "springStiffness": null,
-    "victimMass": null,
-    "springDamping": null
-  },
-  "inputDirections": {
-    "jabThreshold": 0.9,
-    "kickThreshold": -0.6
+    "radius": 350
   }
 }
