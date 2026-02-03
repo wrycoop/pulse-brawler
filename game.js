@@ -1923,9 +1923,40 @@ class BrawlerGame {
             const velFactor = Math.min(1, currentAbsVel / velocityThreshold);
             const holdDist = minDist + (maxDist - minDist) * velFactor;
             
-            // Position victim around player
-            target.position.x = this.player.position.x + Math.cos(this.player.grappleAngle) * holdDist;
-            target.position.y = this.player.position.y + Math.sin(this.player.grappleAngle) * holdDist;
+            // Position based on grapple system
+            const grappleSystem = grappleTuning.grappleSystem ?? 'playerCentered';
+            
+            if (grappleSystem === 'sharedFulcrum') {
+                // SHARED FULCRUM: Both orbit around center of mass
+                // Fulcrum shifts toward player as spin increases (player "leans back")
+                const massRatio = grappleTuning.sharedMassRatio ?? 0.5;
+                const restFulcrum = massRatio;
+                const spinFulcrum = massRatio * 0.4; // Shifts toward player under load
+                const fulcrumRatio = restFulcrum - (restFulcrum - spinFulcrum) * velFactor;
+                
+                // Calculate center point (midpoint for now, could be weighted)
+                const midX = (this.player.position.x + target.position.x) / 2;
+                const midY = (this.player.position.y + target.position.y) / 2;
+                
+                // Player distance from fulcrum
+                const playerDist = holdDist * fulcrumRatio;
+                // Victim distance from fulcrum  
+                const victimDist = holdDist * (1 - fulcrumRatio);
+                
+                // Position both around the midpoint/fulcrum
+                // Player moves opposite to grapple angle (leans back)
+                this.player.position.x = midX - Math.cos(this.player.grappleAngle) * playerDist;
+                this.player.position.y = midY - Math.sin(this.player.grappleAngle) * playerDist;
+                
+                // Victim along grapple angle
+                target.position.x = midX + Math.cos(this.player.grappleAngle) * victimDist;
+                target.position.y = midY + Math.sin(this.player.grappleAngle) * victimDist;
+            } else {
+                // PLAYER CENTERED: Victim orbits around fixed player position
+                target.position.x = this.player.position.x + Math.cos(this.player.grappleAngle) * holdDist;
+                target.position.y = this.player.position.y + Math.sin(this.player.grappleAngle) * holdDist;
+            }
+            
             target.container.x = target.position.x;
             target.container.y = target.position.y;
             

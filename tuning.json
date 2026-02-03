@@ -69,6 +69,8 @@
     "strikeRange": 120
   },
   "grapple": {
+    "grappleSystem": "playerCentered",
+    "sharedMassRatio": 0.5,
     "range": 60,
     "holdFrames": 10,
     "holdDistanceMin": 60,
