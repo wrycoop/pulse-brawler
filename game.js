@@ -1,5 +1,5 @@
 // Lean Movement Prototype - Force-based, no speed cap
-// One fighter, lean-driven movement, arena only
+// Player + 3 dummies + jab attack
 // Tuning from Google Sheet
 
 const canvas = document.getElementById('game');
@@ -13,6 +13,7 @@ const CY = H / 2;
 let tuning = {
   lean: { maxLean: 20, leanSpeed: 50, moveForce: 50, friction: 50 },
   movement: { deadzone: 10, curve: 15 },
+  attack: { range: 80, force: 50, leanForce: 30 },
   arena: { radius: 350 }
 };
 
@@ -20,7 +21,6 @@ async function loadTuning() {
   try {
     const res = await fetch('/tuning.json?' + Date.now());
     tuning = await res.json();
-    console.log('Tuning loaded:', tuning);
   } catch (e) {
     console.warn('Using default tuning');
   }
@@ -28,7 +28,9 @@ async function loadTuning() {
 
 // Fighter class - lean-driven movement (force-based)
 class Fighter {
-  constructor(x, y, color) {
+  constructor(x, y, color, label) {
+    this.spawnX = x;
+    this.spawnY = y;
     this.x = x;
     this.y = y;
     this.vx = 0;
@@ -37,31 +39,30 @@ class Fighter {
     this.baseRadius = 25;
     this.upperRadius = 15;
     this.color = color;
+    this.label = label || '';
     
-    // Lean state
     this.leanX = 0;
     this.leanY = 0;
+    
+    this.hitFlash = 0;
   }
   
   update(inputX, inputY) {
     const lean = tuning.lean || {};
     const move = tuning.movement || {};
     
-    // NORMALIZED PARAMS (0-100 scale, 50 = sensible default)
-    // These map to ranges that produce reasonable physics
     const maxLean = lean.maxLean ?? 20;
-    const leanSpeed = 0.02 + ((lean.leanSpeed ?? 50) / 100) * 0.18;      // 50 → 0.11
-    const moveForce = 0.005 + ((lean.moveForce ?? 50) / 100) * 0.045;   // 50 → 0.0275
-    const friction = 0.85 + ((lean.friction ?? 50) / 100) * 0.14;       // 50 → 0.92
+    const leanSpeed = 0.02 + ((lean.leanSpeed ?? 50) / 100) * 0.18;
+    const moveForce = 0.005 + ((lean.moveForce ?? 50) / 100) * 0.045;
+    const friction = 0.85 + ((lean.friction ?? 50) / 100) * 0.14;
     const deadzone = (move.deadzone ?? 10) / 100;
-    const curve = 1 + ((move.curve ?? 15) / 100) * 2;                   // 15 → 1.3
+    const curve = 1 + ((move.curve ?? 15) / 100) * 2;
     
-    // Process input with deadzone and curve
+    // Process input
     let mag = Math.sqrt(inputX * inputX + inputY * inputY);
     if (mag < deadzone) {
       inputX = 0;
       inputY = 0;
-      mag = 0;
     } else if (mag > 0) {
       const remapped = Math.min(1, (mag - deadzone) / (1 - deadzone));
       const curved = Math.pow(remapped, curve);
@@ -70,35 +71,38 @@ class Fighter {
       inputY *= scale;
     }
     
-    // Target lean from input
+    // Lean
     const targetLeanX = inputX * maxLean;
     const targetLeanY = inputY * maxLean;
-    
-    // Lean approaches target (smoothed)
     this.leanX += (targetLeanX - this.leanX) * leanSpeed;
     this.leanY += (targetLeanY - this.leanY) * leanSpeed;
     
-    // FORCE-BASED: Lean creates force on base
+    // Force from lean
     const forceX = this.leanX * moveForce;
     const forceY = this.leanY * moveForce;
-    
-    // Apply force to velocity
     this.vx += forceX;
     this.vy += forceY;
     
-    // Apply friction (velocity decay)
+    // Friction
     this.vx *= friction;
     this.vy *= friction;
     
-    // Update position
+    // Position
     this.x += this.vx;
     this.y += this.vy;
+    
+    // Hit flash decay
+    if (this.hitFlash > 0) this.hitFlash--;
   }
   
-  // External force (for hits, throws, etc - same system)
   applyForce(fx, fy) {
     this.vx += fx;
     this.vy += fy;
+  }
+  
+  applyLeanForce(lx, ly) {
+    this.leanX += lx;
+    this.leanY += ly;
   }
   
   constrainToArena() {
@@ -114,7 +118,6 @@ class Fighter {
       this.x = CX + nx * maxDist;
       this.y = CY + ny * maxDist;
       
-      // Remove velocity into wall
       const dot = this.vx * nx + this.vy * ny;
       if (dot > 0) {
         this.vx -= nx * dot;
@@ -123,9 +126,27 @@ class Fighter {
     }
   }
   
+  isOut() {
+    const arenaRadius = tuning.arena?.radius || 350;
+    const dx = this.x - CX;
+    const dy = this.y - CY;
+    return Math.sqrt(dx * dx + dy * dy) > arenaRadius + this.baseRadius;
+  }
+  
+  respawn() {
+    this.x = this.spawnX;
+    this.y = this.spawnY;
+    this.vx = 0;
+    this.vy = 0;
+    this.leanX = 0;
+    this.leanY = 0;
+  }
+  
   draw(ctx) {
     const upperX = this.x + this.leanX;
     const upperY = this.y + this.leanY;
+    
+    const color = this.hitFlash > 0 ? '#ffffff' : this.color;
     
     // Connection line
     ctx.strokeStyle = 'rgba(255,255,255,0.3)';
@@ -135,18 +156,27 @@ class Fighter {
     ctx.lineTo(upperX, upperY);
     ctx.stroke();
     
-    // Base circle (feet)
-    ctx.fillStyle = this.color;
+    // Base
+    ctx.fillStyle = color;
     ctx.globalAlpha = 0.6;
     ctx.beginPath();
     ctx.arc(this.x, this.y, this.baseRadius, 0, Math.PI * 2);
     ctx.fill();
     
-    // Upper body
+    // Upper
     ctx.globalAlpha = 1;
     ctx.beginPath();
     ctx.arc(upperX, upperY, this.upperRadius, 0, Math.PI * 2);
     ctx.fill();
+    
+    // Label
+    if (this.label) {
+      ctx.fillStyle = '#000';
+      ctx.font = '18px sans-serif';
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+      ctx.fillText(this.label, upperX, upperY);
+    }
     
     ctx.globalAlpha = 1;
   }
@@ -154,23 +184,25 @@ class Fighter {
 
 // Input handling
 const keys = {};
-window.addEventListener('keydown', e => keys[e.key.toLowerCase()] = true);
+const keysJustPressed = {};
+window.addEventListener('keydown', e => {
+  const k = e.key.toLowerCase();
+  if (!keys[k]) keysJustPressed[k] = true;
+  keys[k] = true;
+});
 window.addEventListener('keyup', e => keys[e.key.toLowerCase()] = false);
 
 function getInput() {
   let x = 0, y = 0;
   
-  // Keyboard
   if (keys['w'] || keys['arrowup']) y -= 1;
   if (keys['s'] || keys['arrowdown']) y += 1;
   if (keys['a'] || keys['arrowleft']) x -= 1;
   if (keys['d'] || keys['arrowright']) x += 1;
   
-  // Normalize diagonal
   const mag = Math.sqrt(x * x + y * y);
   if (mag > 1) { x /= mag; y /= mag; }
   
-  // Gamepad (overrides keyboard if present)
   const gp = navigator.getGamepads()[0];
   if (gp) {
     const gpX = gp.axes[0] || 0;
@@ -184,50 +216,217 @@ function getInput() {
   return { x, y };
 }
 
+function getAttackInput() {
+  // Keyboard: I = □, J = △, L = ○
+  // Gamepad: Square = □, Triangle = △, Circle = ○
+  const attacks = { tri: false, sq: false, cir: false };
+  
+  if (keysJustPressed['i']) attacks.sq = true;
+  if (keysJustPressed['j']) attacks.tri = true;
+  if (keysJustPressed['l']) attacks.cir = true;
+  
+  const gp = navigator.getGamepads()[0];
+  if (gp) {
+    // PS layout: 0=X, 1=O, 2=□, 3=△
+    if (gp.buttons[2]?.pressed) attacks.sq = true;
+    if (gp.buttons[3]?.pressed) attacks.tri = true;
+    if (gp.buttons[1]?.pressed) attacks.cir = true;
+  }
+  
+  return attacks;
+}
+
 // Game state
 let player;
+let dummies = [];
+let lastAttacks = { tri: false, sq: false, cir: false };
+let attackVisuals = []; // { targetIdx, hit, timer }
 
 function init() {
-  player = new Fighter(CX, CY, '#00ff88');
+  player = new Fighter(CX, CY + 100, '#00ff88', '');
+  
+  // 3 dummies arranged around center
+  const r = 150;
+  dummies = [
+    new Fighter(CX, CY - r, '#ff6666', 'SQ'),          // Square button
+    new Fighter(CX - r * 0.87, CY + r * 0.5, '#6666ff', 'TRI'), // Triangle button
+    new Fighter(CX + r * 0.87, CY + r * 0.5, '#ff66ff', 'O'),   // Circle button
+  ];
+}
+
+function doAttack(targetIdx) {
+  const target = dummies[targetIdx];
+  const atk = tuning.attack || {};
+  const range = atk.range ?? 80;
+  const force = (atk.force ?? 50) / 10;
+  const leanForce = (atk.leanForce ?? 30) / 10;
+  
+  // Direction toward intended target
+  const dx = target.x - player.x;
+  const dy = target.y - player.y;
+  const dist = Math.sqrt(dx * dx + dy * dy);
+  const nx = dist > 0 ? dx / dist : 0;
+  const ny = dist > 0 ? dy / dist : 1;
+  
+  // Check ALL dummies for hits along this ray
+  let anyHit = false;
+  for (const dummy of dummies) {
+    // Project dummy position onto attack ray
+    const toDummyX = dummy.x - player.x;
+    const toDummyY = dummy.y - player.y;
+    
+    // Distance along ray (dot product)
+    const alongRay = toDummyX * nx + toDummyY * ny;
+    
+    // Perpendicular distance from ray
+    const perpX = toDummyX - alongRay * nx;
+    const perpY = toDummyY - alongRay * ny;
+    const perpDist = Math.sqrt(perpX * perpX + perpY * perpY);
+    
+    // Hit if: within range, in front of player, and close to ray
+    const inRange = alongRay > 0 && alongRay < range + player.baseRadius + dummy.baseRadius;
+    const onRay = perpDist < dummy.baseRadius + 5; // 5px tolerance
+    
+    if (inRange && onRay) {
+      // Knockback direction is along the ray (from player)
+      dummy.applyForce(nx * force, ny * force);
+      dummy.applyLeanForce(nx * leanForce, ny * leanForce);
+      dummy.hitFlash = 8;
+      anyHit = true;
+    }
+  }
+  
+  // Store for visual
+  attackVisuals.push({ targetIdx, hit: anyHit, timer: 12 });
 }
 
 function update() {
   const input = getInput();
+  const attacks = getAttackInput();
+  
   player.update(input.x, input.y);
   player.constrainToArena();
+  
+  // Attack on press (not hold)
+  if (attacks.sq && !lastAttacks.sq) doAttack(0);
+  if (attacks.tri && !lastAttacks.tri) doAttack(1);
+  if (attacks.cir && !lastAttacks.cir) doAttack(2);
+  lastAttacks = { ...attacks };
+  
+  // Update dummies
+  for (const d of dummies) {
+    d.update(0, 0); // No input - just physics
+    
+    if (d.isOut()) {
+      console.log('RING OUT!');
+      d.respawn();
+    }
+  }
+  
+  // Fighter collision (all pairs)
+  const allFighters = [player, ...dummies];
+  for (let i = 0; i < allFighters.length; i++) {
+    for (let j = i + 1; j < allFighters.length; j++) {
+      const a = allFighters[i];
+      const b = allFighters[j];
+      
+      const dx = b.x - a.x;
+      const dy = b.y - a.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      const minDist = a.baseRadius + b.baseRadius;
+      
+      if (dist < minDist && dist > 0) {
+        // Push apart
+        const overlap = minDist - dist;
+        const nx = dx / dist;
+        const ny = dy / dist;
+        
+        // Move each half the overlap
+        a.x -= nx * overlap * 0.5;
+        a.y -= ny * overlap * 0.5;
+        b.x += nx * overlap * 0.5;
+        b.y += ny * overlap * 0.5;
+        
+        // Bounce velocities slightly
+        const relVel = (a.vx - b.vx) * nx + (a.vy - b.vy) * ny;
+        if (relVel > 0) {
+          a.vx -= nx * relVel * 0.5;
+          a.vy -= ny * relVel * 0.5;
+          b.vx += nx * relVel * 0.5;
+          b.vy += ny * relVel * 0.5;
+          
+          // Collision causes lean (destabilize both)
+          const collisionLean = (tuning.collision?.leanForce ?? 50) / 20; // 0-100 → 0-5
+          const leanImpact = relVel * collisionLean;
+          a.applyLeanForce(-nx * leanImpact, -ny * leanImpact);
+          b.applyLeanForce(nx * leanImpact, ny * leanImpact);
+        }
+      }
+    }
+  }
+  
+  // Update attack visuals
+  for (let i = attackVisuals.length - 1; i >= 0; i--) {
+    attackVisuals[i].timer--;
+    if (attackVisuals[i].timer <= 0) attackVisuals.splice(i, 1);
+  }
+  
+  // Clear just-pressed
+  for (const k in keysJustPressed) delete keysJustPressed[k];
 }
 
 function draw() {
   const arenaRadius = tuning.arena?.radius || 350;
-  const lean = tuning.lean || {};
-  
-  // Calculate terminal velocity for display
-  const moveForce = 0.005 + ((lean.moveForce ?? 50) / 100) * 0.045;
-  const friction = 0.85 + ((lean.friction ?? 50) / 100) * 0.14;
-  const maxForce = (lean.maxLean ?? 20) * moveForce;
-  const terminalV = maxForce / (1 - friction);
   
   // Background
   ctx.fillStyle = '#1a1a2e';
   ctx.fillRect(0, 0, W, H);
   
-  // Arena ring
+  // Arena
   ctx.strokeStyle = '#4a4a6a';
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.arc(CX, CY, arenaRadius, 0, Math.PI * 2);
   ctx.stroke();
   
+  // Dummies
+  for (const d of dummies) d.draw(ctx);
+  
+  // Attack limbs (drawn from player's current position)
+  const range = tuning.attack?.range ?? 80;
+  for (const av of attackVisuals) {
+    const target = dummies[av.targetIdx];
+    const dx = target.x - player.x;
+    const dy = target.y - player.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const nx = dist > 0 ? dx / dist : 0;
+    const ny = dist > 0 ? dy / dist : 1;
+    
+    // Limb from player edge, toward target, capped at range
+    const startX = player.x + nx * player.baseRadius;
+    const startY = player.y + ny * player.baseRadius;
+    const limbLen = Math.min(range, dist - player.baseRadius - target.baseRadius);
+    const endX = startX + nx * Math.max(0, limbLen);
+    const endY = startY + ny * Math.max(0, limbLen);
+    
+    ctx.strokeStyle = av.hit ? '#ffff00' : '#888888';
+    ctx.lineWidth = 4;
+    ctx.lineCap = 'round';
+    ctx.globalAlpha = av.timer / 12;
+    ctx.beginPath();
+    ctx.moveTo(startX, startY);
+    ctx.lineTo(endX, endY);
+    ctx.stroke();
+    ctx.globalAlpha = 1;
+  }
+  
   // Player
   player.draw(ctx);
   
-  // Debug info
-  const speed = Math.sqrt(player.vx*player.vx + player.vy*player.vy);
+  // Controls hint
   ctx.fillStyle = '#666';
   ctx.font = '12px monospace';
-  ctx.fillText(`lean: (${player.leanX.toFixed(1)}, ${player.leanY.toFixed(1)})`, 10, 20);
-  ctx.fillText(`vel: (${player.vx.toFixed(2)}, ${player.vy.toFixed(2)})`, 10, 35);
-  ctx.fillText(`speed: ${speed.toFixed(1)} / ${terminalV.toFixed(1)} (terminal)`, 10, 50);
+  ctx.fillText('Left stick = move | Face buttons = attack target', 10, H - 10);
 }
 
 function loop() {
@@ -236,10 +435,8 @@ function loop() {
   requestAnimationFrame(loop);
 }
 
-// Start
 loadTuning().then(() => {
   init();
   loop();
-  // Reload tuning periodically
   setInterval(loadTuning, 2000);
 });

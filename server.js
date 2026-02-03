@@ -32,7 +32,7 @@ async function fetchTuningFromSheet() {
   const sheets = await getSheets();
   const res = await sheets.spreadsheets.values.get({
     spreadsheetId: SHEET_ID,
-    range: 'Sheet1!A:D'
+    range: "'Tuning Sheet'!A:D"
   });
   
   const rows = res.data.values || [];
