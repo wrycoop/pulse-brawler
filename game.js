@@ -779,6 +779,21 @@ class Player {
         this.grappleAngularVel = 0; // Angular velocity (radians/sec)
         this.lastStickAngle = null; // For detecting stick rotation
         
+        // LEAN-DRIVEN MOVEMENT
+        this.lean = new LeanModel();
+        this.movementInput = new MovementInput();
+        
+        // Upper body visual (offset from base by lean)
+        this.upperBody = new PIXI.Graphics();
+        this.upperBody.beginFill(0x00ff88);
+        this.upperBody.drawCircle(0, 0, 15); // Smaller upper body
+        this.upperBody.endFill();
+        this.container.addChild(this.upperBody);
+        
+        // Lean connection line
+        this.leanLine = new PIXI.Graphics();
+        this.container.addChildAt(this.leanLine, 0); // Behind body
+        
         this.game.world.addChild(this.container);
     }
     
@@ -979,67 +994,69 @@ class Player {
             this.blockstunTimer--;
         }
         
+        // LEAN-DRIVEN MOVEMENT
+        // Get lean tuning (with defaults)
+        const leanTuning = this.tuning.lean || { maxLean: 20, leanResponse: 0.15, pullStrength: 0.5, baseDamping: 0.85 };
+        const movementTuning = this.tuning.movement || { stickDeadzone: 0.1, stickCurve: 1.5 };
+        
         // Movement (only if not attacking, not in hitstun, not blocking, and not in spin-grapple)
-        // Note: grappling below spin threshold still allows stick movement (handled in grapple code)
         const inSpinGrapple = this.isGrappling && Math.abs(this.grappleAngularVel || 0) >= (this.tuning?.grapple?.velocityThreshold ?? 5);
         if (!this.isAttacking && this.attackLockTimer <= 0 && !this.isBlocking && !inSpinGrapple) {
             if (this.isGrappling) {
-                // Grappling below threshold - movement handled by grapple code, zero out velocity here
-                this.velocity.x = 0;
-                this.velocity.y = 0;
+                // Grappling below threshold - lean target is zero (controlled by grapple code)
+                this.lean.setTarget(0, 0, leanTuning.maxLean);
             } else if (this.isDizzy) {
-                // DIZZY MOVEMENT - tipping mechanics
-                // Constant tip force in random direction
+                // DIZZY MOVEMENT - uncontrolled lean oscillation
                 const tipForce = this.tuning.combo?.dizzyTipForce ?? 400;
                 const tipDirX = Math.cos(this.dizzyTipAngle);
                 const tipDirY = Math.sin(this.dizzyTipAngle);
                 
-                // Initialize tip velocity if needed
-                if (!this.dizzyTipVel) {
-                    this.dizzyTipVel = new Vec2(0, 0);
-                }
-                
-                // Apply tip force (constant acceleration toward tip direction)
-                this.dizzyTipVel.x += tipDirX * tipForce * dt;
-                this.dizzyTipVel.y += tipDirY * tipForce * dt;
-                
-                // Player input also accelerates (can counter or amplify tip)
+                // Player input can counter (but weakly)
                 const inputForce = this.tuning.combo?.dizzyInputForce ?? 500;
-                this.dizzyTipVel.x += input.leftStick.x * inputForce * dt;
-                this.dizzyTipVel.y += input.leftStick.y * inputForce * dt;
+                const netX = tipDirX * tipForce * 0.01 + input.leftStick.x * inputForce * 0.005;
+                const netY = tipDirY * tipForce * 0.01 + input.leftStick.y * inputForce * 0.005;
                 
-                // Max speed cap (erratic, not fast)
-                const maxSpeed = this.speed * 0.8; // 80% of normal max
-                const currentSpeed = Math.sqrt(this.dizzyTipVel.x ** 2 + this.dizzyTipVel.y ** 2);
-                if (currentSpeed > maxSpeed) {
-                    this.dizzyTipVel.x *= maxSpeed / currentSpeed;
-                    this.dizzyTipVel.y *= maxSpeed / currentSpeed;
-                }
-                
-                // Apply tip velocity as movement
-                this.velocity.x = this.dizzyTipVel.x;
-                this.velocity.y = this.dizzyTipVel.y;
+                this.lean.setTarget(netX, netY, leanTuning.maxLean);
             } else {
-                const moveX = input.leftStick.x;
-                const moveY = input.leftStick.y;
-                this.velocity.x = moveX * this.speed;
-                this.velocity.y = moveY * this.speed;
+                // NORMAL MOVEMENT - stick input sets lean target
+                this.movementInput.update(input.leftStick.x, input.leftStick.y, movementTuning);
+                const processed = this.movementInput.getInput();
+                this.lean.setTarget(processed.x, processed.y, leanTuning.maxLean);
             }
-        } else if (inSpinGrapple) {
-            // Spin grapple - no velocity, position handled by grapple code
-            this.velocity.x = 0;
-            this.velocity.y = 0;
-        } else if (this.isBlocking) {
-            // Stop movement while blocking
-            this.velocity.x = 0;
-            this.velocity.y = 0;
+        } else if (inSpinGrapple || this.isBlocking) {
+            // Can't move - lean returns to center
+            this.lean.setTarget(0, 0, leanTuning.maxLean);
         }
-        // Note: when attackLockTimer > 0 but not blocking, velocity persists (knockback)
+        // Note: when attackLockTimer > 0, lean persists (knocked off balance)
+        
+        // Update lean physics and get resulting force
+        const leanForce = this.lean.update(leanTuning);
+        
+        // Apply lean force to velocity (scaled for speed feel)
+        const speedScale = this.speed / 300; // Normalize to expected speed
+        this.velocity.x += leanForce.x * speedScale;
+        this.velocity.y += leanForce.y * speedScale;
+        
+        // Apply damping
+        const damping = leanTuning.baseDamping;
+        this.velocity.x *= damping;
+        this.velocity.y *= damping;
         
         // UPDATE FACING - face the centroid of other fighters (keeping eyes on the fight)
         // Facing is handled by game loop which has access to all fighters
         
         this.position.add(this.velocity.clone().multiply(dt));
+        
+        // Update upper body visual (offset from base by lean)
+        const leanOffset = this.lean.getOffset();
+        this.upperBody.x = leanOffset.x;
+        this.upperBody.y = leanOffset.y;
+        
+        // Draw lean connection line
+        this.leanLine.clear();
+        this.leanLine.lineStyle(2, 0xffffff, 0.3);
+        this.leanLine.moveTo(0, 0);
+        this.leanLine.lineTo(leanOffset.x, leanOffset.y);
         
         // Check if fallen off platform (center crosses edge)
         const bounds = this.game.arenaBounds;
@@ -1092,6 +1109,33 @@ class Player {
         }
         this.body.drawCircle(0, 0, this.radius);
         this.body.endFill();
+        
+        // Update upper body color to match base body state
+        // (Getting current fill color is complex in Pixi, so duplicate the logic)
+        let upperColor = 0x00ff88; // Default neutral
+        if (this.isGrappling) {
+            const absVel = Math.abs(this.grappleAngularVel || 0);
+            const threshold = this.tuning?.grapple?.velocityThreshold ?? 4;
+            upperColor = absVel >= threshold ? 0x00ffff : 0xffd700;
+        } else if (this.attackLockTimer > 0 && !this.limbAnimation.active) {
+            upperColor = 0xff4444;
+        } else if (this.parrySuccessTimer > 0) {
+            upperColor = 0xffd700;
+        } else if (this.isParrying && this.parryWindow > 0.1) {
+            upperColor = 0xffffff;
+        } else if (this.isParrying) {
+            upperColor = 0x00ffff;
+        } else if (this.blockstunTimer > 0) {
+            upperColor = 0x6688cc;
+        } else if (this.isBlocking) {
+            upperColor = 0x4488ff;
+        } else if (this.limbAnimation.active) {
+            upperColor = 0xffaa00;
+        }
+        this.upperBody.clear();
+        this.upperBody.beginFill(upperColor);
+        this.upperBody.drawCircle(0, 0, 15);
+        this.upperBody.endFill();
         
         // Update range viz
         if (this.strikeTimer > 0) {

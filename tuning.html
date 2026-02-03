@@ -136,6 +136,23 @@
     </div>
     
     <div class="section">
+        <h2>⚖️ Lean Physics</h2>
+        <p style="color: #888; font-size: 12px; margin: 0 0 10px 0;">
+            Movement is driven by lean. Upper body leans, base (feet) follows.
+        </p>
+        <div class="grid">
+            <div class="field"><label>Max Lean (px)</label><input type="number" id="lean.maxLean" step="1"></div>
+            <div class="field"><label>Lean Response (0-1)</label><input type="number" id="lean.leanResponse" step="0.01" min="0" max="1"></div>
+            <div class="field"><label>Pull Strength</label><input type="number" id="lean.pullStrength" step="0.1"></div>
+            <div class="field"><label>Base Damping (0-1)</label><input type="number" id="lean.baseDamping" step="0.01" min="0" max="1"></div>
+        </div>
+        <div class="grid" style="margin-top: 10px;">
+            <div class="field"><label>Stick Deadzone</label><input type="number" id="movement.stickDeadzone" step="0.01" min="0" max="0.5"></div>
+            <div class="field"><label>Stick Curve (1=linear)</label><input type="number" id="movement.stickCurve" step="0.1" min="1" max="3"></div>
+        </div>
+    </div>
+    
+    <div class="section">
         <h2>👊 Attacks</h2>
         <div class="attack-group">
             <h3>Jab (toward target)</h3>
