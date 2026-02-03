@@ -1,0 +1,18 @@
+{
+  "name": "brawler-proto",
+  "version": "0.1.0",
+  "description": "Browser-based fight game prototype with strike mechanics",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js"
+  },
+  "keywords": [
+    "game",
+    "threejs",
+    "gamepad",
+    "fighting"
+  ],
+  "author": "Riley",
+  "license": "MIT"
+}

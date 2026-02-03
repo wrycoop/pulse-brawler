@@ -1,0 +1,574 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>Brawler Tuning</title>
+    <style>
+        * { box-sizing: border-box; }
+        body { 
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: #1a1a2e; 
+            color: #eee; 
+            padding: 20px;
+            max-width: 900px;
+            margin: 0 auto;
+        }
+        h1 { color: #4ade80; margin-bottom: 5px; }
+        .subtitle { color: #888; margin-bottom: 20px; }
+        .section { 
+            background: #16213e; 
+            border-radius: 8px; 
+            padding: 15px; 
+            margin-bottom: 15px;
+        }
+        .section h2 { 
+            margin: 0 0 15px 0; 
+            color: #60a5fa;
+            font-size: 14px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 10px;
+        }
+        .field {
+            display: flex;
+            flex-direction: column;
+        }
+        .field label {
+            color: #aaa;
+            font-size: 12px;
+            margin-bottom: 4px;
+        }
+        .field input {
+            padding: 8px;
+            border: 1px solid #333;
+            border-radius: 4px;
+            background: #0f0f1a;
+            color: #fff;
+            font-size: 14px;
+            font-family: monospace;
+        }
+        .field input:focus {
+            outline: none;
+            border-color: #4ade80;
+        }
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 20px;
+        }
+        button {
+            padding: 12px 24px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            cursor: pointer;
+            transition: transform 0.1s;
+        }
+        button:active { transform: scale(0.98); }
+        .save { background: #4ade80; color: #000; font-weight: bold; }
+        .reload { background: #60a5fa; color: #000; }
+        .status {
+            margin-top: 15px;
+            padding: 10px;
+            border-radius: 4px;
+            display: none;
+        }
+        .status.success { display: block; background: #166534; }
+        .status.error { display: block; background: #991b1b; }
+        .attack-group { margin-bottom: 10px; padding: 10px; background: #0f0f1a; border-radius: 4px; }
+        .attack-group h3 { margin: 0 0 10px 0; color: #fbbf24; font-size: 13px; }
+    </style>
+</head>
+<body>
+    <h1>🎮 Brawler Tuning</h1>
+    <p class="subtitle">Edit → Save → Refresh game to apply</p>
+    
+    <div class="section">
+        <h2>🎯 Dummy Settings</h2>
+        <div class="grid">
+            <div class="field">
+                <label>Guard (defensive action)</label>
+                <select id="dummy.guard" style="padding: 8px; background: #0f0f1a; color: #fff; border: 1px solid #333; border-radius: 4px;">
+                    <option value="none">None (no blocking)</option>
+                    <option value="blockAll">Block All</option>
+                    <option value="parryAll">Parry All</option>
+                </select>
+            </div>
+            <div class="field">
+                <label>Hit Reaction (when hit lands)</label>
+                <select id="dummy.hitReaction" style="padding: 8px; background: #0f0f1a; color: #fff; border: 1px solid #333; border-radius: 4px;">
+                    <option value="normal">Normal</option>
+                    <option value="counterHit">Counter Hit</option>
+                    <option value="punishCounter">Punish Counter</option>
+                </select>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>⏱️ Timing (frames @ 60fps)</h2>
+        <div class="grid">
+            <div class="field">
+                <label>Startup</label>
+                <input type="number" id="timing.startupFrames" step="1">
+            </div>
+            <div class="field">
+                <label>Active</label>
+                <input type="number" id="timing.activeFrames" step="1">
+            </div>
+            <div class="field">
+                <label>Recovery (cancel window)</label>
+                <input type="number" id="timing.recoveryFrames" step="1">
+            </div>
+            <div class="field">
+                <label>Finisher Recovery</label>
+                <input type="number" id="timing.finisherRecoveryFrames" step="1">
+            </div>
+            <div class="field">
+                <label>Cooldown</label>
+                <input type="number" id="timing.cooldownFrames" step="1">
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>👊 Attacks</h2>
+        <div class="attack-group">
+            <h3>Jab (toward target)</h3>
+            <div class="grid">
+                <div class="field"><label>Force</label><input type="number" id="attacks.jab.force" step="50"></div>
+                <div class="field"><label>Reach (0-1)</label><input type="number" id="attacks.jab.reach" step="0.1"></div>
+                <div class="field"><label>Angle (°)</label><input type="number" id="attacks.jab.angle" step="5"></div>
+                <div class="field"><label>Step Distance</label><input type="number" id="attacks.jab.stepDistance" step="5"></div>
+                <div class="field"><label>Step Frames</label><input type="number" id="attacks.jab.stepFrames" step="1"></div>
+                <div class="field"><label>Block Knockback (0-1)</label><input type="number" id="attacks.jab.blockKnockback" step="0.1" min="0" max="1"></div>
+                <div class="field"><label>Block Step Retain (0-1)</label><input type="number" id="attacks.jab.blockStepRetain" step="0.1" min="0" max="1"></div>
+                <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.jab.parryKnockback" step="50"></div>
+                <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.jab.parryAngle" step="10"></div>
+                <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.jab.parryStunFrames" step="1"></div>
+            </div>
+        </div>
+        <div class="attack-group">
+            <h3>Hook (lateral)</h3>
+            <div class="grid">
+                <div class="field"><label>Force</label><input type="number" id="attacks.hook.force" step="50"></div>
+                <div class="field"><label>Reach (0-1)</label><input type="number" id="attacks.hook.reach" step="0.1"></div>
+                <div class="field"><label>Angle (°)</label><input type="number" id="attacks.hook.angle" step="5"></div>
+                <div class="field"><label>Step Distance</label><input type="number" id="attacks.hook.stepDistance" step="5"></div>
+                <div class="field"><label>Step Frames</label><input type="number" id="attacks.hook.stepFrames" step="1"></div>
+                <div class="field"><label>Sweep Start (°)</label><input type="number" id="attacks.hook.sweepStart" step="5"></div>
+                <div class="field"><label>Sweep End (°)</label><input type="number" id="attacks.hook.sweepEnd" step="5"></div>
+                <div class="field"><label>Sweep Frames</label><input type="number" id="attacks.hook.sweepFrames" step="1"></div>
+                <div class="field"><label>Step Lateral (0-1)</label><input type="number" id="attacks.hook.stepLateral" step="0.1" min="0" max="1"></div>
+                <div class="field"><label>Block Knockback (0-1)</label><input type="number" id="attacks.hook.blockKnockback" step="0.1" min="0" max="1"></div>
+                <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.hook.parryKnockback" step="50"></div>
+                <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.hook.parryAngle" step="10"></div>
+                <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.hook.parryStunFrames" step="1"></div>
+            </div>
+        </div>
+        <div class="attack-group">
+            <h3>Kick (away from target)</h3>
+            <div class="grid">
+                <div class="field"><label>Force</label><input type="number" id="attacks.kick.force" step="50"></div>
+                <div class="field"><label>Reach (0-1)</label><input type="number" id="attacks.kick.reach" step="0.1"></div>
+                <div class="field"><label>Angle (°)</label><input type="number" id="attacks.kick.angle" step="5"></div>
+                <div class="field"><label>Step Distance</label><input type="number" id="attacks.kick.stepDistance" step="5"></div>
+                <div class="field"><label>Step Frames</label><input type="number" id="attacks.kick.stepFrames" step="1"></div>
+                <div class="field"><label>Block Knockback (0-1)</label><input type="number" id="attacks.kick.blockKnockback" step="0.1" min="0" max="1"></div>
+                <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.kick.parryKnockback" step="50"></div>
+                <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.kick.parryAngle" step="10"></div>
+                <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.kick.parryStunFrames" step="1"></div>
+            </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🏃 Movement</h2>
+        <div class="grid">
+            <div class="field"><label>Player Speed</label><input type="number" id="movement.playerSpeed" step="10"></div>
+            <div class="field"><label>Knockback Damping</label><input type="number" id="movement.knockbackDamping" step="0.01"></div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🕹️ Input Directions</h2>
+        <p style="color: #888; font-size: 12px; margin: 0 0 10px 0;">
+            Thresholds for stick-to-attack mapping. Higher jab = narrower forward cone. Lower kick = wider back cone.
+        </p>
+        <div class="grid">
+            <div class="field"><label>Jab Threshold (0.3-0.9)</label><input type="number" id="inputDirections.jabThreshold" step="0.1" min="0.3" max="0.9" oninput="drawWedges()"></div>
+            <div class="field"><label>Kick Threshold (-0.9 to -0.1)</label><input type="number" id="inputDirections.kickThreshold" step="0.1" min="-0.9" max="-0.1" oninput="drawWedges()"></div>
+        </div>
+        <div style="display: flex; justify-content: center; margin-top: 15px;">
+            <canvas id="wedgeCanvas" width="250" height="250" style="background: #0f0f1a; border-radius: 8px;"></canvas>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 10px; font-size: 12px;">
+            <span style="color: #4ade80;">■ Jab (toward)</span>
+            <span style="color: #fbbf24;">■ Hook (lateral)</span>
+            <span style="color: #f87171;">■ Kick (away)</span>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>⚔️ Combat</h2>
+        <div class="grid">
+            <div class="field"><label>Blockstun Frames</label><input type="number" id="combat.blockstunFrames" step="1"></div>
+            <div class="field"><label>Parry Step (px)</label><input type="number" id="combat.parryStep" step="10"></div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🤼 Grapple (Hammer Toss)</h2>
+        <div class="grid">
+            <div class="field"><label>Initiate Range (px)</label><input type="number" id="grapple.range" step="10"></div>
+            <div class="field"><label>Hold Frames</label><input type="number" id="grapple.holdFrames" step="1"></div>
+            <div class="field"><label>Hold Dist Min (px)</label><input type="number" id="grapple.holdDistanceMin" step="5"></div>
+            <div class="field"><label>Hold Dist Max (px)</label><input type="number" id="grapple.holdDistanceMax" step="10"></div>
+            <div class="field"><label>Throw Force</label><input type="number" id="grapple.throwForce" step="100"></div>
+            <div class="field"><label>Angular Accel</label><input type="number" id="grapple.angularAccel" step="1"></div>
+            <div class="field"><label>Angular Drag</label><input type="number" id="grapple.angularDrag" step="0.5"></div>
+            <div class="field"><label>Velocity Threshold</label><input type="number" id="grapple.velocityThreshold" step="1"></div>
+            <div class="field"><label>Grapple Move Speed</label><input type="number" id="grapple.grappleMoveSpeed" step="0.5"></div>
+            <div class="field"><label>Back Drift (spin only)</label><input type="number" id="grapple.backDrift" step="0.1"></div>
+            <div class="field"><label>Back Drift Angle (°)</label><input type="number" id="grapple.backDriftAngle" step="5"></div>
+            <div class="field"><label>Push Reposition</label><input type="number" id="grapple.pushReposition" step="0.5"></div>
+            <div class="field"><label>Forward Dead Zone (0-1)</label><input type="number" id="grapple.forwardDeadZone" step="0.05" min="0" max="1" oninput="drawGrappleZones()"></div>
+            <div class="field"><label>Back Dead Zone (0-1)</label><input type="number" id="grapple.backDeadZone" step="0.05" min="0" max="1" oninput="drawGrappleZones()"></div>
+            <div class="field"><label>Passive Drift</label><input type="number" id="grapple.passiveDrift" step="0.1"></div>
+            <div class="field"><label>Drift Friction (0-1)</label><input type="number" id="grapple.driftFriction" step="0.05" min="0" max="1"></div>
+            <div class="field"><label>Max Spins</label><input type="number" id="grapple.maxSpins" step="0.5" min="1"></div>
+        </div>
+        <div style="display: flex; justify-content: center; margin-top: 15px;">
+            <canvas id="grappleCanvas" width="250" height="250" style="background: #0f0f1a; border-radius: 8px;"></canvas>
+        </div>
+        <div style="display: flex; justify-content: center; gap: 20px; margin-top: 10px; font-size: 12px;">
+            <span style="color: #666;">■ Dead (no rot)</span>
+            <span style="color: #4ade80;">■ Rotation active</span>
+        </div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🔗 Combo</h2>
+        <div class="grid">
+            <div class="field"><label>Max Chain</label><input type="number" id="combo.maxChain" step="1"></div>
+            <div class="field"><label>Finisher Force ×</label><input type="number" id="combo.finisherForceMultiplier" step="0.1"></div>
+            <div class="field"><label>Dizzy Knockback ×</label><input type="number" id="combo.dizzyKnockbackMultiplier" step="0.5"></div>
+            <div class="field"><label>Dizzy Frames</label><input type="number" id="combo.dizzyFrames" step="1"></div>
+            <div class="field"><label>Combo Reset Frames</label><input type="number" id="combo.comboResetFrames" step="1"></div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🏟️ Arena</h2>
+        <div class="grid">
+            <div class="field"><label>Strike Range</label><input type="number" id="arena.strikeRange" step="10"></div>
+        </div>
+    </div>
+    
+    <div class="actions">
+        <button class="save" onclick="save()">💾 Save</button>
+        <button class="reload" onclick="load()">🔄 Reload</button>
+    </div>
+    
+    <div id="status" class="status"></div>
+    
+    <script>
+        let tuning = {};
+        
+        const defaults = {
+            dummy: { guard: 'none', hitReaction: 'punishCounter' },
+            movement: { playerSpeed: 300, knockbackDamping: 0.95 },
+            inputDirections: { jabThreshold: 0.7, kickThreshold: -0.3 },
+            attacks: {
+                jab: { force: 800, reach: 0.9, angle: 0, stepFrames: 6, parryStunFrames: 30 },
+                hook: { force: 900, reach: 0.9, angle: 90, sweepStart: -60, sweepEnd: 60, sweepFrames: 6, stepFrames: 6, parryStunFrames: 30 },
+                kick: { force: 1600, reach: 1.1, angle: 0, stepFrames: 9, parryStunFrames: 30 }
+            },
+            timing: { startupFrames: 6, activeFrames: 6, recoveryFrames: 12, finisherRecoveryFrames: 24, cooldownFrames: 9 },
+            combo: { maxChain: 3, finisherForceMultiplier: 1.5, dizzyKnockbackMultiplier: 3.0, dizzyFrames: 180, comboResetFrames: 60 },
+            arena: { strikeRange: 120 }
+        };
+        
+        function drawWedges() {
+            const canvas = document.getElementById('wedgeCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const r = 100;
+            
+            // Get current values
+            const jabThreshold = parseFloat(document.getElementById('inputDirections.jabThreshold')?.value) || 0.7;
+            const kickThreshold = parseFloat(document.getElementById('inputDirections.kickThreshold')?.value) || -0.3;
+            
+            // Convert dot product thresholds to angles
+            // dot = cos(angle), so angle = acos(dot)
+            // Jab: dot > jabThreshold means angle < acos(jabThreshold)
+            // Kick: dot < kickThreshold means angle > acos(kickThreshold)
+            const jabAngle = Math.acos(Math.min(1, Math.max(-1, jabThreshold)));
+            const kickAngle = Math.acos(Math.min(1, Math.max(-1, kickThreshold)));
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Draw from player's perspective: right = toward target (0°)
+            // Jab zone (toward) - green
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, -jabAngle, jabAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Kick zone (away) - red
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, Math.PI - (Math.PI - kickAngle), Math.PI + (Math.PI - kickAngle));
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(248, 113, 113, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#f87171';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Hook zones (lateral) - yellow - fill the gaps
+            // Upper hook zone
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, jabAngle, kickAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Lower hook zone
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, -kickAngle, -jabAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(251, 191, 36, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#fbbf24';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw target indicator (right side)
+            ctx.beginPath();
+            ctx.arc(cx + r + 15, cy, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#888';
+            ctx.fill();
+            ctx.fillStyle = '#aaa';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('TARGET', cx + r + 15, cy + 22);
+            
+            // Draw player indicator (center)
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#60a5fa';
+            ctx.fill();
+            
+            // Labels
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('JAB', cx + 50, cy);
+            ctx.fillText('KICK', cx - 50, cy);
+            ctx.fillText('HOOK', cx, cy - 50);
+            ctx.fillText('HOOK', cx, cy + 55);
+        }
+        
+        function drawGrappleZones() {
+            const canvas = document.getElementById('grappleCanvas');
+            if (!canvas) return;
+            const ctx = canvas.getContext('2d');
+            const cx = canvas.width / 2;
+            const cy = canvas.height / 2;
+            const r = 100;
+            
+            // Get current values
+            const forwardZone = parseFloat(document.getElementById('grapple.forwardDeadZone')?.value) || 0.85;
+            const backZone = parseFloat(document.getElementById('grapple.backDeadZone')?.value) || 0.85;
+            
+            // Convert dot product thresholds to angles
+            const forwardAngle = Math.acos(Math.min(1, Math.max(-1, forwardZone)));
+            const backAngle = Math.acos(Math.min(1, Math.max(-1, -backZone)));
+            
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            // Rotation active zones (green) - the middle areas
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, forwardAngle, backAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, -backAngle, -forwardAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(74, 222, 128, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#4ade80';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Forward dead zone (gray) - toward target
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, -forwardAngle, forwardAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Back dead zone (gray) - away from target
+            ctx.beginPath();
+            ctx.moveTo(cx, cy);
+            ctx.arc(cx, cy, r, backAngle, 2*Math.PI - backAngle);
+            ctx.closePath();
+            ctx.fillStyle = 'rgba(100, 100, 100, 0.6)';
+            ctx.fill();
+            ctx.strokeStyle = '#666';
+            ctx.lineWidth = 2;
+            ctx.stroke();
+            
+            // Draw victim indicator (right side)
+            ctx.beginPath();
+            ctx.arc(cx + r + 15, cy, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#f87171';
+            ctx.fill();
+            ctx.fillStyle = '#aaa';
+            ctx.font = '10px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('VICTIM', cx + r + 15, cy + 22);
+            
+            // Draw player indicator (center)
+            ctx.beginPath();
+            ctx.arc(cx, cy, 8, 0, Math.PI * 2);
+            ctx.fillStyle = '#60a5fa';
+            ctx.fill();
+            
+            // Labels
+            ctx.fillStyle = '#fff';
+            ctx.font = 'bold 11px sans-serif';
+            ctx.textAlign = 'center';
+            ctx.fillText('FWD', cx + 50, cy);
+            ctx.fillText('BACK', cx - 50, cy);
+            ctx.fillText('ROT', cx, cy - 50);
+            ctx.fillText('ROT', cx, cy + 55);
+        }
+        
+        async function load() {
+            // Try server first, then localStorage, then defaults
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000);
+                const res = await fetch('/tuning.json?' + Date.now(), { signal: controller.signal });
+                clearTimeout(timeout);
+                tuning = await res.json();
+                localStorage.setItem('brawler-tuning', JSON.stringify(tuning));
+                showStatus('✓ Loaded from server', 'success');
+            } catch (e) {
+                // Try localStorage
+                const saved = localStorage.getItem('brawler-tuning');
+                if (saved) {
+                    tuning = JSON.parse(saved);
+                    showStatus('✓ Loaded from local storage', 'success');
+                } else {
+                    tuning = JSON.parse(JSON.stringify(defaults));
+                    showStatus('⚠ Using defaults', 'error');
+                }
+            }
+            populateFields();
+            drawWedges();
+            drawGrappleZones();
+        }
+        
+        function populateFields() {
+            document.querySelectorAll('input, select').forEach(el => {
+                const path = el.id.split('.');
+                let val = tuning;
+                for (const p of path) {
+                    val = val?.[p];
+                }
+                if (val !== undefined) {
+                    el.value = val;
+                }
+            });
+        }
+        
+        function collectFields() {
+            document.querySelectorAll('input, select').forEach(el => {
+                const path = el.id.split('.');
+                let obj = tuning;
+                for (let i = 0; i < path.length - 1; i++) {
+                    if (!obj[path[i]]) obj[path[i]] = {};
+                    obj = obj[path[i]];
+                }
+                // Keep strings as strings (for mode), numbers as numbers
+                const val = el.value;
+                obj[path[path.length - 1]] = isNaN(val) ? val : parseFloat(val);
+            });
+        }
+        
+        async function save() {
+            collectFields();
+            // Always save to localStorage
+            localStorage.setItem('brawler-tuning', JSON.stringify(tuning));
+            
+            showStatus('⏳ Saving to server...', 'success');
+            
+            // Try to save to server too
+            try {
+                const controller = new AbortController();
+                const timeout = setTimeout(() => controller.abort(), 5000);
+                const res = await fetch('/tuning.json', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(tuning, null, 2),
+                    signal: controller.signal
+                });
+                clearTimeout(timeout);
+                if (res.ok) {
+                    const result = await res.json();
+                    console.log('Server response:', result);
+                    // Signal game window to reload
+                    new BroadcastChannel('brawler-tuning').postMessage('reload');
+                    showStatus('✓ Saved! Game reloading...', 'success');
+                } else {
+                    const text = await res.text();
+                    throw new Error('server returned ' + res.status + ': ' + text);
+                }
+            } catch (e) {
+                console.error('Save failed:', e);
+                showStatus('⚠ Server save failed: ' + e.message, 'error');
+            }
+        }
+        
+        function showStatus(msg, type) {
+            const el = document.getElementById('status');
+            el.textContent = msg;
+            el.className = 'status ' + type;
+            setTimeout(() => el.className = 'status', 4000);
+        }
+        
+        load();
+    </script>
+</body>
+</html>

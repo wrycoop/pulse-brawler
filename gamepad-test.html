@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Gamepad Test</title>
+    <style>
+        body { font-family: monospace; background: #1a1a2e; color: #0f0; padding: 20px; }
+        #output { white-space: pre; font-size: 14px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <h2>Gamepad Test - Press buttons and move sticks</h2>
+    <div id="output">Waiting for gamepad... Press any button to connect.</div>
+    <script>
+        function update() {
+            const gamepads = navigator.getGamepads();
+            let output = '';
+            
+            let found = false;
+            for (let i = 0; i < 4; i++) {
+                const gp = gamepads[i];
+                if (gp) {
+                    found = true;
+                    output += `=== GAMEPAD ${i} ===\n`;
+                    output += `ID: ${gp.id}\n`;
+                    output += `Connected: ${gp.connected}\n`;
+                    output += `Timestamp: ${gp.timestamp}\n\n`;
+                    
+                    output += `AXES:\n`;
+                    gp.axes.forEach((val, idx) => {
+                        const bar = '█'.repeat(Math.round((val + 1) * 10));
+                        output += `  ${idx}: ${val.toFixed(3).padStart(7)} ${bar}\n`;
+                    });
+                    
+                    output += `\nBUTTONS:\n`;
+                    gp.buttons.forEach((btn, idx) => {
+                        const pressed = btn.pressed ? '[PRESSED]' : '         ';
+                        const value = btn.value.toFixed(2);
+                        output += `  ${idx.toString().padStart(2)}: ${pressed} (${value})\n`;
+                    });
+                    output += '\n';
+                }
+            }
+            
+            if (!found) {
+                output = 'No gamepad detected.\nPress any button on your controller to connect.';
+            }
+            
+            document.getElementById('output').textContent = output;
+            requestAnimationFrame(update);
+        }
+        
+        window.addEventListener('gamepadconnected', (e) => {
+            console.log('Gamepad connected:', e.gamepad.id);
+        });
+        
+        window.addEventListener('gamepaddisconnected', (e) => {
+            console.log('Gamepad disconnected');
+        });
+        
+        update();
+    </script>
+</body>
+</html>

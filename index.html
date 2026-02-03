@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>👊</text></svg>">
+    <title>Brawler - Fight Game Prototype</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            width: 100vw;
+            height: 100vh;
+            overflow: hidden;
+            background: #1a1a2e;
+            font-family: 'Arial', sans-serif;
+        }
+
+        #gameCanvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+
+        #ui {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            color: #00ff00;
+            font-size: 14px;
+            text-shadow: 0 0 10px rgba(0,255,0,0.5);
+            z-index: 10;
+        }
+
+        #ui div {
+            margin: 5px 0;
+            font-family: monospace;
+        }
+
+        .controller-status {
+            color: #ffff00;
+        }
+
+        .controller-status.connected {
+            color: #00ff00;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            color: #00aa00;
+            font-size: 12px;
+            text-align: right;
+            max-width: 300px;
+        }
+
+        #instructions div {
+            margin: 3px 0;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameCanvas"></div>
+    
+    <div id="ui">
+        <div><strong>BRAWLER PROTO v3 (Pixi.js)</strong></div>
+        <div id="controller" class="controller-status">Controller: Disconnected</div>
+        <div id="fps">FPS: 0</div>
+        <div id="playerPos">Player: (0, 0)</div>
+    </div>
+
+    <button onclick="location.reload()" style="position:fixed;top:10px;right:10px;padding:8px 16px;background:#4ade80;color:#000;border:none;border-radius:4px;cursor:pointer;font-weight:bold;z-index:1000;">🔄 Refresh</button>
+
+    <div id="instructions">
+        <div><strong>Controls:</strong></div>
+        <div>◀ L-Stick: Move</div>
+        <div>□ Square: Attack Front</div>
+        <div>△ Triangle: Attack Left</div>
+        <div>◯ Circle: Attack Right</div>
+        <div style="margin-top: 10px">Direction relative to target:</div>
+        <div>Towards = Jab | Away = Push Kick</div>
+        <div>Left/Right = Hooks</div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pixi.js/7.2.4/pixi.min.js"></script>
+    <script src="game.js"></script>
+</body>
+</html>
