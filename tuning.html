@@ -165,6 +165,9 @@
         body: JSON.stringify(tuning, null, 2)
       });
       
+      // Tell game to reload
+      new BroadcastChannel('tuning').postMessage('reload');
+      
       const status = document.getElementById('status');
       status.classList.add('show');
       setTimeout(() => status.classList.remove('show'), 1500);

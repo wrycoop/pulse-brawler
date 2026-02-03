@@ -1,8 +1,8 @@
 {
   "lean": {
-    "maxLean": 20,
-    "leanResponse": 0.15,
-    "pullStrength": 0.5,
+    "maxLean": 10,
+    "leanResponse": 0.01,
+    "pullStrength": 0.2,
     "baseDamping": 0.85
   },
   "movement": {
