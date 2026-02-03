@@ -14,5 +14,8 @@
     "fighting"
   ],
   "author": "Riley",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "googleapis": "^171.2.0"
+  }
 }
