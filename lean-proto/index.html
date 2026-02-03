@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Lean Movement Prototype</title>
+  <style>
+    body {
+      margin: 0;
+      background: #0a0a15;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      font-family: monospace;
+    }
+    canvas {
+      border: 2px solid #333;
+    }
+    #info {
+      position: fixed;
+      top: 10px;
+      left: 10px;
+      color: #666;
+      font-size: 12px;
+    }
+    #tuning {
+      position: fixed;
+      right: 10px;
+      top: 10px;
+      background: #1a1a2e;
+      padding: 15px;
+      border-radius: 8px;
+      color: #aaa;
+      font-size: 11px;
+    }
+    #tuning label {
+      display: block;
+      margin: 8px 0 2px;
+    }
+    #tuning input {
+      width: 80px;
+      background: #0a0a15;
+      border: 1px solid #333;
+      color: #fff;
+      padding: 4px;
+    }
+  </style>
+</head>
+<body>
+  <canvas id="game" width="800" height="800"></canvas>
+  
+  <div id="info">
+    WASD / Left Stick: Move<br>
+    Space / X: Attack dummy
+  </div>
+  
+  <div id="tuning">
+    <strong>Lean Physics</strong>
+    <label>maxLean <input type="number" id="t_maxLean" value="20" step="1"></label>
+    <label>leanResponse <input type="number" id="t_leanResponse" value="0.15" step="0.01"></label>
+    <label>pullStrength <input type="number" id="t_pullStrength" value="0.5" step="0.05"></label>
+    <label>baseDamping <input type="number" id="t_baseDamping" value="0.85" step="0.01"></label>
+    <hr style="border-color:#333;margin:10px 0">
+    <strong>Movement</strong>
+    <label>stickDeadzone <input type="number" id="t_stickDeadzone" value="0.1" step="0.01"></label>
+    <label>stickCurve <input type="number" id="t_stickCurve" value="1.5" step="0.1"></label>
+  </div>
+
+  <script src="lean.js"></script>
+  <script src="movement.js"></script>
+  <script src="game.js"></script>
+</body>
+</html>
