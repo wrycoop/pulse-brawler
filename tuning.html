@@ -150,6 +150,7 @@
                 <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.jab.parryKnockback" step="50"></div>
                 <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.jab.parryAngle" step="10"></div>
                 <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.jab.parryStunFrames" step="1"></div>
+                <div class="field"><label>Dizzy Amount</label><input type="number" id="attacks.jab.dizzyAmount" step="5"></div>
             </div>
         </div>
         <div class="attack-group">
@@ -168,10 +169,11 @@
                 <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.hook.parryKnockback" step="50"></div>
                 <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.hook.parryAngle" step="10"></div>
                 <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.hook.parryStunFrames" step="1"></div>
+                <div class="field"><label>Dizzy Amount</label><input type="number" id="attacks.hook.dizzyAmount" step="5"></div>
             </div>
         </div>
         <div class="attack-group">
-            <h3>Kick (away from target)</h3>
+            <h3>Kick (toward target)</h3>
             <div class="grid">
                 <div class="field"><label>Force</label><input type="number" id="attacks.kick.force" step="50"></div>
                 <div class="field"><label>Reach (0-1)</label><input type="number" id="attacks.kick.reach" step="0.1"></div>
@@ -182,6 +184,7 @@
                 <div class="field"><label>Parry Knockback</label><input type="number" id="attacks.kick.parryKnockback" step="50"></div>
                 <div class="field"><label>Parry Angle (°)</label><input type="number" id="attacks.kick.parryAngle" step="10"></div>
                 <div class="field"><label>Parry Stun Frames</label><input type="number" id="attacks.kick.parryStunFrames" step="1"></div>
+                <div class="field"><label>Dizzy Amount</label><input type="number" id="attacks.kick.dizzyAmount" step="5"></div>
             </div>
         </div>
     </div>
@@ -268,9 +271,22 @@
         <div class="grid">
             <div class="field"><label>Max Chain</label><input type="number" id="combo.maxChain" step="1"></div>
             <div class="field"><label>Finisher Force ×</label><input type="number" id="combo.finisherForceMultiplier" step="0.1"></div>
-            <div class="field"><label>Dizzy Knockback ×</label><input type="number" id="combo.dizzyKnockbackMultiplier" step="0.5"></div>
-            <div class="field"><label>Dizzy Frames</label><input type="number" id="combo.dizzyFrames" step="1"></div>
             <div class="field"><label>Combo Reset Frames</label><input type="number" id="combo.comboResetFrames" step="1"></div>
+        </div>
+    </div>
+    
+    <div class="section">
+        <h2>🥴 Dizzy</h2>
+        <p style="color: #888; font-size: 12px; margin: 0 0 10px 0;">
+            L2 (or Q key) triggers test dizzy. Tipping = constant force in random direction. Counter with stick.
+        </p>
+        <div class="grid">
+            <div class="field"><label>Dizzy Frames (duration)</label><input type="number" id="combo.dizzyFrames" step="10"></div>
+            <div class="field"><label>Dizzy Threshold (meter)</label><input type="number" id="combo.dizzyThreshold" step="10"></div>
+            <div class="field"><label>Dizzy Timeout (frames)</label><input type="number" id="combo.dizzyTimeout" step="10"></div>
+            <div class="field"><label>Tip Force (constant push)</label><input type="number" id="combo.dizzyTipForce" step="50"></div>
+            <div class="field"><label>Input Force (counter strength)</label><input type="number" id="combo.dizzyInputForce" step="50"></div>
+            <div class="field"><label>Knockback Multiplier</label><input type="number" id="combo.dizzyKnockbackMultiplier" step="0.5"></div>
         </div>
     </div>
     

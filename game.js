@@ -339,6 +339,8 @@ class Dummy {
         // Dizzy state (stunned from finisher)
         this.isDizzy = false;
         this.dizzyTimer = 0;
+        this.dizzyMeter = 0; // Accumulates from hits
+        this.dizzyMeterTimer = 0; // Timeout - if this hits 0, meter resets
         
         // Training dummy settings (SF6-style)
         this.dummySettings = {
@@ -365,8 +367,30 @@ class Dummy {
     applyDizzy() {
         sfx.dizzy();
         this.isDizzy = true;
+        this.dizzyMeter = 0; // Reset meter when going dizzy
         this.dizzyTimer = this.game.tuning.combo?.dizzyFrames ?? 180; // 3 seconds at 60fps
         console.log(`${this.label} is DIZZY!`);
+    }
+    
+    // Add to dizzy meter from a hit. Returns true if this triggered dizzy.
+    addDizzyDamage(amount) {
+        if (this.isDizzy) return false; // Already dizzy
+        
+        this.dizzyMeter += amount;
+        // Reset timeout timer on each hit
+        this.dizzyMeterTimer = this.game.tuning.combo?.dizzyTimeout ?? 120; // 2 seconds at 60fps
+        
+        const threshold = this.game.tuning.combo?.dizzyThreshold ?? 100;
+        console.log(`${this.label} dizzyMeter: ${this.dizzyMeter.toFixed(0)}/${threshold} (${this.dizzyMeterTimer}f window)`);
+        
+        if (this.dizzyMeter >= threshold) {
+            // Set random tip direction before applying dizzy
+            this.dizzyTipAngle = Math.random() * Math.PI * 2;
+            this.dizzyTipVel = new Vec2(0, 0);
+            this.applyDizzy();
+            return true;
+        }
+        return false;
     }
     
     breakFreeFromGrapple() {
@@ -424,7 +448,12 @@ class Dummy {
     
     applyKnockback(direction, force) {
         const knockback = direction.clone().normalize().multiply(force);
-        this.velocity.add(knockback);
+        // If dizzy, apply knockback to tip velocity (so it doesn't get overwritten)
+        if (this.isDizzy && this.dizzyTipVel) {
+            this.dizzyTipVel.add(knockback);
+        } else {
+            this.velocity.add(knockback);
+        }
         // No velocity cap - let tuning control distance
     }
     
@@ -445,6 +474,12 @@ class Dummy {
                 this.isRespawning = false;
                 this.position = this.initialPosition.clone();
                 this.velocity = new Vec2(0, 0);
+                // Clear dizzy state
+                this.isDizzy = false;
+                this.dizzyTimer = 0;
+                this.dizzyMeter = 0;
+                this.dizzyTipVel = null;
+                this.container.rotation = 0;
                 this.container.visible = true;
                 console.log(`${this.label} respawned!`);
             }
@@ -462,15 +497,56 @@ class Dummy {
             }
         }
         
-        // Update dizzy state (frame-based)
+        // Update dizzy state (frame-based) - tipping mechanics
         if (this.isDizzy) {
             this.dizzyTimer--;
-            // Spin while dizzy
-            this.container.rotation += dt * 8; // dt still used for smooth rotation
+            
+            // Apply tipping movement (dummies can't counter, just stumble)
+            const tipForce = this.game.tuning.combo?.dizzyTipForce ?? 400;
+            const tipDirX = Math.cos(this.dizzyTipAngle || 0);
+            const tipDirY = Math.sin(this.dizzyTipAngle || 0);
+            
+            if (!this.dizzyTipVel) {
+                this.dizzyTipVel = new Vec2(0, 0);
+            }
+            
+            // Constant tip acceleration
+            this.dizzyTipVel.x += tipDirX * tipForce * dt;
+            this.dizzyTipVel.y += tipDirY * tipForce * dt;
+            
+            // Max speed cap
+            const maxSpeed = 200; // Dummies stumble slower
+            const currentSpeed = Math.sqrt(this.dizzyTipVel.x ** 2 + this.dizzyTipVel.y ** 2);
+            if (currentSpeed > maxSpeed) {
+                this.dizzyTipVel.x *= maxSpeed / currentSpeed;
+                this.dizzyTipVel.y *= maxSpeed / currentSpeed;
+            }
+            
+            // Apply as velocity
+            this.velocity.x = this.dizzyTipVel.x;
+            this.velocity.y = this.dizzyTipVel.y;
+            
+            // Visual wobble
+            const tipSpeed = currentSpeed;
+            this.container.rotation = Math.sin(this.dizzyTimer * 0.3) * 0.3 * (tipSpeed / 100 + 0.5);
+            
             if (this.dizzyTimer <= 0) {
                 this.isDizzy = false;
                 this.container.rotation = 0;
+                this.dizzyMeter = 0;
+                this.dizzyTipVel = null;
                 console.log(`${this.label} recovered from dizzy`);
+            }
+        }
+        
+        // Dizzy meter timeout (when not already dizzy)
+        // If no hits within timeout window, meter resets
+        if (!this.isDizzy && this.dizzyMeter > 0) {
+            if (this.dizzyMeterTimer > 0) {
+                this.dizzyMeterTimer--;
+            } else {
+                // Timeout - reset meter
+                this.dizzyMeter = 0;
             }
         }
         
@@ -696,6 +772,8 @@ class Player {
     // Dizzy state (e.g., from spin timeout)
     this.isDizzy = false;
     this.dizzyTimer = 0;
+    this.dizzyMeter = 0; // Accumulates from hits
+    this.dizzyMeterTimer = 0; // Timeout - if this hits 0, meter resets
         // Hammer toss physics
         this.grappleAngle = 0; // Current angle of victim around player (radians)
         this.grappleAngularVel = 0; // Angular velocity (radians/sec)
@@ -788,6 +866,32 @@ class Player {
         this.drawFacingIndicator();
     }
     
+    // Add to dizzy meter from a hit. Returns true if this triggered dizzy.
+    addDizzyDamage(amount) {
+        if (this.isDizzy) return false; // Already dizzy
+        
+        this.dizzyMeter += amount;
+        // Reset timeout timer on each hit
+        this.dizzyMeterTimer = this.tuning.combo?.dizzyTimeout ?? 120; // 2 seconds at 60fps
+        
+        const threshold = this.tuning.combo?.dizzyThreshold ?? 100;
+        console.log(`Player dizzyMeter: ${this.dizzyMeter.toFixed(0)}/${threshold} (${this.dizzyMeterTimer}f window)`);
+        
+        if (this.dizzyMeter >= threshold) {
+            this.isDizzy = true;
+            this.dizzyMeter = 0;
+            this.dizzyMeterTimer = 0;
+            this.dizzyTimer = this.dizzyFrames;
+            // Set random tip direction
+            this.dizzyTipAngle = Math.random() * Math.PI * 2;
+            this.dizzyTipVel = new Vec2(0, 0); // Current tip velocity
+            sfx.dizzy();
+            console.log('Player is DIZZY! Tip direction: ' + (this.dizzyTipAngle * 180 / Math.PI).toFixed(0) + '°');
+            return true;
+        }
+        return false;
+    }
+    
     update(dt, input) {
         // Handle respawning
         if (this.isRespawning) {
@@ -797,6 +901,12 @@ class Player {
                 this.isRespawning = false;
                 this.position = new Vec2(0, 0);
                 this.velocity = new Vec2(0, 0);
+                // Clear dizzy state
+                this.isDizzy = false;
+                this.dizzyTimer = 0;
+                this.dizzyMeter = 0;
+                this.dizzyTipVel = null;
+                this.container.rotation = 0;
                 this.container.visible = true;
                 console.log('Player respawned!');
             }
@@ -820,6 +930,34 @@ class Player {
             this.comboResetTimer--;
             if (this.comboResetTimer <= 0) {
                 this.comboCount = 0;
+            }
+        }
+        
+        // Dizzy state update - tipping mechanics
+        if (this.isDizzy) {
+            this.dizzyTimer--;
+            
+            // Visual wobble (mild rotation based on tip velocity)
+            const tipSpeed = this.dizzyTipVel ? Math.sqrt(this.dizzyTipVel.x ** 2 + this.dizzyTipVel.y ** 2) : 0;
+            this.container.rotation = Math.sin(this.dizzyTimer * 0.3) * 0.3 * (tipSpeed / 100 + 0.5);
+            
+            if (this.dizzyTimer <= 0) {
+                this.isDizzy = false;
+                this.container.rotation = 0;
+                this.dizzyMeter = 0;
+                this.dizzyTipVel = null;
+                console.log('Player recovered from dizzy');
+            }
+        }
+        
+        // Dizzy meter timeout (when not already dizzy)
+        // If no hits within timeout window, meter resets
+        if (!this.isDizzy && this.dizzyMeter > 0) {
+            if (this.dizzyMeterTimer > 0) {
+                this.dizzyMeterTimer--;
+            } else {
+                // Timeout - reset meter
+                this.dizzyMeter = 0;
             }
         }
         
@@ -849,6 +987,38 @@ class Player {
                 // Grappling below threshold - movement handled by grapple code, zero out velocity here
                 this.velocity.x = 0;
                 this.velocity.y = 0;
+            } else if (this.isDizzy) {
+                // DIZZY MOVEMENT - tipping mechanics
+                // Constant tip force in random direction
+                const tipForce = this.tuning.combo?.dizzyTipForce ?? 400;
+                const tipDirX = Math.cos(this.dizzyTipAngle);
+                const tipDirY = Math.sin(this.dizzyTipAngle);
+                
+                // Initialize tip velocity if needed
+                if (!this.dizzyTipVel) {
+                    this.dizzyTipVel = new Vec2(0, 0);
+                }
+                
+                // Apply tip force (constant acceleration toward tip direction)
+                this.dizzyTipVel.x += tipDirX * tipForce * dt;
+                this.dizzyTipVel.y += tipDirY * tipForce * dt;
+                
+                // Player input also accelerates (can counter or amplify tip)
+                const inputForce = this.tuning.combo?.dizzyInputForce ?? 500;
+                this.dizzyTipVel.x += input.leftStick.x * inputForce * dt;
+                this.dizzyTipVel.y += input.leftStick.y * inputForce * dt;
+                
+                // Max speed cap (erratic, not fast)
+                const maxSpeed = this.speed * 0.8; // 80% of normal max
+                const currentSpeed = Math.sqrt(this.dizzyTipVel.x ** 2 + this.dizzyTipVel.y ** 2);
+                if (currentSpeed > maxSpeed) {
+                    this.dizzyTipVel.x *= maxSpeed / currentSpeed;
+                    this.dizzyTipVel.y *= maxSpeed / currentSpeed;
+                }
+                
+                // Apply tip velocity as movement
+                this.velocity.x = this.dizzyTipVel.x;
+                this.velocity.y = this.dizzyTipVel.y;
             } else {
                 const moveX = input.leftStick.x;
                 const moveY = input.leftStick.y;
@@ -1224,14 +1394,21 @@ class Player {
                         dummy.applyKnockback(knockbackDir, force * dizzyMult);
                         dummy.flash();
                         
-                        if (isFinisher && attackType !== 'push_kick') {
-                            dummy.applyDizzy();
+                        // Apply dizzy damage based on attack type (new meter system)
+                        const dizzyAmounts = {
+                            'jab': this.tuning.attacks?.jab?.dizzyAmount ?? 35,
+                            'hook': this.tuning.attacks?.hook?.dizzyAmount ?? 35,
+                            'push_kick': this.tuning.attacks?.kick?.dizzyAmount ?? 0
+                        };
+                        const dizzyAmount = dizzyAmounts[attackType] ?? 0;
+                        if (dizzyAmount > 0) {
+                            dummy.addDizzyDamage(dizzyAmount);
                         }
                         
                         hitAny = true;
                         
                         const reactionText = hitReaction !== 'normal' ? ` ${hitReaction.toUpperCase()}!` : '';
-                        const comboText = this.comboCount > 1 ? ` [COMBO ${this.comboCount}${isFinisher ? ' FINISHER!' : ''}]` : '';
+                        const comboText = this.comboCount > 1 ? ` [COMBO ${this.comboCount}]` : '';
                         console.log(`${attackType.toUpperCase()} HIT → ${dummy.label}${reactionText}${comboText}`);
                     }
                 }
@@ -1491,18 +1668,15 @@ class Player {
                     dummy.applyKnockback(knockbackDir, force * dizzyMult);
                     dummy.flash();
                     
-                    // Use stored finisher state (not comboCount, which may have changed)
-                    if (anim.isFinisher && anim.type !== 'push_kick') {
-                        dummy.applyDizzy();
-                    }
-                    
-                    // Reset combo count after finisher hit lands
-                    if (anim.isFinisher) {
-                        this.comboCount = 0;
+                    // Apply dizzy damage based on attack type (new meter system)
+                    const attackKey = anim.type === 'push_kick' ? 'kick' : anim.type;
+                    const dizzyAmount = this.tuning.attacks?.[attackKey]?.dizzyAmount ?? 0;
+                    if (dizzyAmount > 0) {
+                        dummy.addDizzyDamage(dizzyAmount);
                     }
                     
                     const reactionText = hitReaction !== 'normal' ? ` ${hitReaction.toUpperCase()}!` : '';
-                    const comboText = this.comboCount > 0 ? ` [COMBO ${this.comboCount}${anim.isFinisher ? ' FINISHER!' : ''}]` : (anim.isFinisher ? ' [FINISHER!]' : '');
+                    const comboText = this.comboCount > 0 ? ` [COMBO ${this.comboCount}]` : '';
                     console.log(`${anim.type.toUpperCase()} HIT → ${dummy.label}${reactionText}${comboText}`);
                 }
             }
@@ -1742,7 +1916,8 @@ class BrawlerGame {
             circle: this.keys['k'] || false,
             square: this.keys['l'] || false,
             triangle: this.keys['i'] || false,
-            l1: this.keys['Shift'] || this.keys['ShiftLeft'] || false
+            l1: this.keys['Shift'] || this.keys['ShiftLeft'] || false,
+            l2: this.keys['q'] || false  // Q = test dizzy (keyboard)
         };
         
         if (gp) {
@@ -1768,7 +1943,8 @@ class BrawlerGame {
                 square: gp.buttons[2]?.pressed || keyboardButtons.square,
                 triangle: gp.buttons[3]?.pressed || keyboardButtons.triangle,
                 l1: gp.buttons[4]?.pressed || keyboardButtons.l1,
-                r1: gp.buttons[5]?.pressed || keyboardButtons.l1  // R1 also works
+                r1: gp.buttons[5]?.pressed || keyboardButtons.l1,  // R1 also works
+                l2: gp.buttons[6]?.pressed || false  // L2 = test dizzy
             };
         } else {
             this.gamepadConnected = false;
@@ -1780,6 +1956,19 @@ class BrawlerGame {
     handleAttacks() {
         const btns = this.input.buttons;
         const lastBtns = this.lastButtons;
+        
+        // L2 = Test dizzy (for tuning)
+        const l2Pressed = btns.l2;
+        const l2WasPressed = lastBtns.l2 || false;
+        if (l2Pressed && !l2WasPressed && !this.player.isDizzy) {
+            // Trigger dizzy for testing
+            this.player.isDizzy = true;
+            this.player.dizzyTimer = this.player.dizzyFrames;
+            this.player.dizzyTipAngle = Math.random() * Math.PI * 2;
+            this.player.dizzyTipVel = new Vec2(0, 0);
+            sfx.dizzy();
+            console.log('TEST DIZZY triggered! Tip: ' + (this.player.dizzyTipAngle * 180 / Math.PI).toFixed(0) + '°');
+        }
         
         // Handle block/parry (L1)
         const blockPressed = btns.l1;

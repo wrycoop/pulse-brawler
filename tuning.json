@@ -18,7 +18,8 @@
       "blockStepRetain": 0.2,
       "parryKnockback": 50,
       "parryAngle": 0,
-      "parryStunFrames": 30
+      "parryStunFrames": 30,
+      "dizzyAmount": 35
     },
     "hook": {
       "force": 600,
@@ -33,7 +34,8 @@
       "blockKnockback": 0.5,
       "parryKnockback": 200,
       "parryAngle": 110,
-      "parryStunFrames": 30
+      "parryStunFrames": 30,
+      "dizzyAmount": 35
     },
     "kick": {
       "force": 1200,
@@ -44,7 +46,8 @@
       "blockKnockback": 1,
       "parryKnockback": 50,
       "parryAngle": 180,
-      "parryStunFrames": 30
+      "parryStunFrames": 30,
+      "dizzyAmount": 0
     }
   },
   "timing": {
@@ -63,7 +66,11 @@
     "finisherForceMultiplier": 1.25,
     "dizzyKnockbackMultiplier": 3,
     "dizzyFrames": 180,
-    "comboResetFrames": 60
+    "comboResetFrames": 60,
+    "dizzyThreshold": 100,
+    "dizzyTimeout": 120,
+    "dizzyTipForce": 400,
+    "dizzyInputForce": 1000
   },
   "arena": {
     "strikeRange": 120
