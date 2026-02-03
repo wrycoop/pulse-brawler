@@ -69,8 +69,8 @@
     "strikeRange": 120
   },
   "grapple": {
-    "grappleSystem": "playerCentered",
-    "sharedMassRatio": 0.5,
+    "grappleSystem": "sharedFulcrum",
+    "sharedMassRatio": 0.8,
     "range": 60,
     "holdFrames": 10,
     "holdDistanceMin": 60,
@@ -87,7 +87,10 @@
     "backDeadZone": 0.95,
     "passiveDrift": 1,
     "driftFriction": 0.8,
-    "maxSpins": 4
+    "maxSpins": 4,
+    "springStiffness": null,
+    "victimMass": null,
+    "springDamping": null
   },
   "inputDirections": {
     "jabThreshold": 0.9,

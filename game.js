@@ -639,6 +639,15 @@ class Player {
         
         this.strikeTimer = 0;
         
+        // ORIENTATION - which way the fighter is facing
+        this.facing = 0; // radians, 0 = right, PI/2 = down, PI = left, -PI/2 = up
+        this.facingSpeed = 8; // how fast facing rotates toward target (radians/sec)
+        
+        // Facing indicator (line showing direction)
+        this.facingViz = new PIXI.Graphics();
+        this.container.addChild(this.facingViz);
+        this.drawFacingIndicator();
+        
         // Limb visualization
         this.limb = new PIXI.Graphics();
         this.container.addChild(this.limb);
@@ -726,6 +735,59 @@ class Player {
     get dizzyFrames() { return this.tuning.combo.dizzyFrames ?? 180; }
     get dizzyKnockbackMultiplier() { return this.tuning.combo.dizzyKnockbackMultiplier || 3; }
     
+    // Draw facing direction indicator
+    drawFacingIndicator() {
+        this.facingViz.clear();
+        // Draw a line showing facing direction
+        this.facingViz.lineStyle(3, 0xffff00, 0.8); // Yellow line
+        this.facingViz.moveTo(0, 0);
+        const indicatorLength = this.radius * 1.2;
+        this.facingViz.lineTo(
+            Math.cos(this.facing) * indicatorLength,
+            Math.sin(this.facing) * indicatorLength
+        );
+        // Draw small triangle at end (arrowhead)
+        const arrowSize = 8;
+        const arrowAngle = this.facing;
+        const tipX = Math.cos(arrowAngle) * indicatorLength;
+        const tipY = Math.sin(arrowAngle) * indicatorLength;
+        this.facingViz.beginFill(0xffff00, 0.8);
+        this.facingViz.moveTo(tipX, tipY);
+        this.facingViz.lineTo(
+            tipX - Math.cos(arrowAngle - 0.5) * arrowSize,
+            tipY - Math.sin(arrowAngle - 0.5) * arrowSize
+        );
+        this.facingViz.lineTo(
+            tipX - Math.cos(arrowAngle + 0.5) * arrowSize,
+            tipY - Math.sin(arrowAngle + 0.5) * arrowSize
+        );
+        this.facingViz.closePath();
+        this.facingViz.endFill();
+    }
+    
+    // Update facing direction toward target angle
+    updateFacing(targetAngle, dt) {
+        // Calculate shortest rotation direction
+        let angleDiff = targetAngle - this.facing;
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        
+        // Rotate toward target at facingSpeed
+        const maxRotation = this.facingSpeed * dt;
+        if (Math.abs(angleDiff) < maxRotation) {
+            this.facing = targetAngle;
+        } else {
+            this.facing += Math.sign(angleDiff) * maxRotation;
+        }
+        
+        // Normalize facing to -PI to PI
+        while (this.facing > Math.PI) this.facing -= 2 * Math.PI;
+        while (this.facing < -Math.PI) this.facing += 2 * Math.PI;
+        
+        // Redraw indicator
+        this.drawFacingIndicator();
+    }
+    
     update(dt, input) {
         // Handle respawning
         if (this.isRespawning) {
@@ -803,6 +865,9 @@ class Player {
             this.velocity.y = 0;
         }
         // Note: when attackLockTimer > 0 but not blocking, velocity persists (knockback)
+        
+        // UPDATE FACING - face the centroid of other fighters (keeping eyes on the fight)
+        // Facing is handled by game loop which has access to all fighters
         
         this.position.add(this.velocity.clone().multiply(dt));
         
@@ -966,16 +1031,16 @@ class Player {
             this.velocity.x = toTarget.x * jabStepSpeed;
             this.velocity.y = toTarget.y * jabStepSpeed;
         } else if (dot < kickThreshold) {
-            // Push kick - away from target (step back)
+            // Push kick - toward target (step forward)
             attackType = 'push_kick';
             force = this.kickForce;
             limbLength = this.strikeRange * this.kickReach;
-            // Step back (tunable distance and frames)
+            // Step forward (tunable distance and frames)
             const kickStepDist = this.tuning.attacks?.kick?.stepDistance ?? 30;
             const kickStepFrames = this.tuning.attacks?.kick?.stepFrames ?? 9;
             const kickStepSpeed = kickStepDist * 60 / kickStepFrames; // Convert frames to pixels/second
-            this.velocity.x = -toTarget.x * kickStepSpeed;
-            this.velocity.y = -toTarget.y * kickStepSpeed;
+            this.velocity.x = toTarget.x * kickStepSpeed;
+            this.velocity.y = toTarget.y * kickStepSpeed;
         } else {
             // Hook - diagonal forward+lateral (step forward and sideways)
             attackType = 'hook';
@@ -1779,7 +1844,7 @@ class BrawlerGame {
             this.player.grappleDebugFrame = (this.player.grappleDebugFrame || 0) + 1;
             if (this.player.grappleDebugFrame % 30 === 0) {
                 const mode = aboveThreshold ? 'SPIN' : (stickMag > 0.3 ? `PULL(${(awayness * 100).toFixed(0)}%)` : 'IDLE');
-                console.log(`[GRAPPLE] mode=${mode} vel=${this.player.grappleAngularVel.toFixed(2)} absVel=${absVel.toFixed(2)} thresh=${velocityThreshold} stick=(${stickX.toFixed(2)},${stickY.toFixed(2)})`);
+                console.log(`[GRAPPLE] mode=${mode} vel=${this.player.grappleAngularVel.toFixed(1)} absVel=${absVel.toFixed(1)} thresh=${velocityThreshold}`);
             }
             
             if (aboveThreshold) {
@@ -1794,9 +1859,11 @@ class BrawlerGame {
                 const driftAngle = baseAwayAngle + spinSign * backDriftAngle;
                 const driftX = Math.cos(driftAngle);
                 const driftY = Math.sin(driftAngle);
-                // Apply backdrift (only in spin state)
-                this.player.position.x += driftX * backDrift * 2;
-                this.player.position.y += driftY * backDrift * 2;
+                // Apply backdrift (only in spin state, skip for sharedFulcrum)
+                if ((grappleTuning.grappleSystem ?? 'playerCentered') !== 'sharedFulcrum') {
+                    this.player.position.x += driftX * backDrift * 2;
+                    this.player.position.y += driftY * backDrift * 2;
+                }
                 
                 if (stickMag > 0.3) {
                     const stickAngle = Math.atan2(stickY, stickX);
@@ -1820,8 +1887,11 @@ class BrawlerGame {
                 // BELOW THRESHOLD: Gradient pull - lateral input determines spin, awayness scales force
                 
                 // Player moves with stick (uniform speed in all directions)
-                this.player.position.x += stickX * grappleMoveSpeed * 60 * dt;
-                this.player.position.y += stickY * grappleMoveSpeed * 60 * dt;
+                // Skip for sharedFulcrum - player movement handled separately there
+                if ((grappleTuning.grappleSystem ?? 'playerCentered') !== 'sharedFulcrum') {
+                    this.player.position.x += stickX * grappleMoveSpeed * 60 * dt;
+                    this.player.position.y += stickY * grappleMoveSpeed * 60 * dt;
+                }
                 
                 // Passive drift: victim trails behind like dragging dead weight with friction
                 // Cross product gives lateral movement relative to victim direction
@@ -1927,30 +1997,61 @@ class BrawlerGame {
             const grappleSystem = grappleTuning.grappleSystem ?? 'playerCentered';
             
             if (grappleSystem === 'sharedFulcrum') {
-                // SHARED FULCRUM: Both orbit around center of mass
-                // Fulcrum shifts toward player as spin increases (player "leans back")
-                const massRatio = grappleTuning.sharedMassRatio ?? 0.5;
-                const restFulcrum = massRatio;
-                const spinFulcrum = massRatio * 0.4; // Shifts toward player under load
-                const fulcrumRatio = restFulcrum - (restFulcrum - spinFulcrum) * velFactor;
+                // CHAIN PHYSICS - Your movement creates torque
+                // Like swinging a ball on a chain: you PULL, chain goes taut, ball swings.
                 
-                // Calculate center point (midpoint for now, could be weighted)
-                const midX = (this.player.position.x + target.position.x) / 2;
-                const midY = (this.player.position.y + target.position.y) / 2;
+                const chainLength = grappleTuning.holdDistanceMin ?? 60;
+                const pullStrength = grappleTuning.springStiffness ?? 10;     // How much your pull translates to torque
+                const victimMass = grappleTuning.victimMass ?? 1.5;           // Inertia
+                const chainDamping = grappleTuning.springDamping ?? 0.98;     // Momentum retention (higher = less loss)
+                const playerGrappleSpeed = grappleTuning.grappleMoveSpeed ?? 4;
                 
-                // Player distance from fulcrum
-                const playerDist = holdDist * fulcrumRatio;
-                // Victim distance from fulcrum  
-                const victimDist = holdDist * (1 - fulcrumRatio);
+                // Initialize if not set
+                if (this.player.victimAngularVel === undefined) {
+                    this.player.victimAngularVel = 0;
+                }
                 
-                // Position both around the midpoint/fulcrum
-                // Player moves opposite to grapple angle (leans back)
-                this.player.position.x = midX - Math.cos(this.player.grappleAngle) * playerDist;
-                this.player.position.y = midY - Math.sin(this.player.grappleAngle) * playerDist;
+                // PLAYER MOVEMENT - you move with stick
+                const moveX = stickX * playerGrappleSpeed;
+                const moveY = stickY * playerGrappleSpeed;
+                this.player.position.x += moveX;
+                this.player.position.y += moveY;
                 
-                // Victim along grapple angle
-                target.position.x = midX + Math.cos(this.player.grappleAngle) * victimDist;
-                target.position.y = midY + Math.sin(this.player.grappleAngle) * victimDist;
+                // Current chain direction (player to victim)
+                const chainX = Math.cos(this.player.grappleAngle);
+                const chainY = Math.sin(this.player.grappleAngle);
+                
+                // YOUR MOVEMENT creates TORQUE
+                // Torque = cross product of chain direction and your movement
+                // If you move perpendicular to chain, max torque (spinning)
+                // If you move along chain, no torque (pulling in/out)
+                const moveMag = Math.sqrt(moveX * moveX + moveY * moveY);
+                if (moveMag > 0.1) {
+                    // Cross product: chain × movement = torque direction
+                    // chainX * moveY - chainY * moveX = perpendicular component
+                    const torqueFromMovement = (chainX * moveY - chainY * moveX) * pullStrength / victimMass;
+                    
+                    // Your pulling (movement away from victim) amplifies torque
+                    // Dot product: how much you're pulling back
+                    const pullAmount = -(chainX * moveX + chainY * moveY); // negative = pulling back
+                    const pullBonus = Math.max(0, pullAmount) * 0.5; // bonus torque when pulling
+                    
+                    this.player.victimAngularVel += (torqueFromMovement * (1 + pullBonus)) * dt * 60;
+                }
+                
+                // Apply damping (very light - preserve momentum)
+                this.player.victimAngularVel *= chainDamping;
+                
+                // Update angle
+                this.player.grappleAngle += this.player.victimAngularVel * dt;
+                
+                // Position victim at end of chain
+                target.position.x = this.player.position.x + Math.cos(this.player.grappleAngle) * chainLength;
+                target.position.y = this.player.position.y + Math.sin(this.player.grappleAngle) * chainLength;
+                
+                // Sync angular vel for throw calculation
+                this.player.grappleAngularVel = this.player.victimAngularVel;
+                
             } else {
                 // PLAYER CENTERED: Victim orbits around fixed player position
                 target.position.x = this.player.position.x + Math.cos(this.player.grappleAngle) * holdDist;
@@ -1963,6 +2064,16 @@ class BrawlerGame {
             // Sync player container
             this.player.container.x = this.player.position.x;
             this.player.container.y = this.player.position.y;
+            
+            // Debug: log positions (every 30 frames)
+            if (this.player.grappleDebugFrame % 30 === 0) {
+                const sys = grappleTuning.grappleSystem ?? 'playerCentered';
+                const anchorX = this.player.grappleAnchorX ?? this.player.position.x;
+                const anchorY = this.player.grappleAnchorY ?? this.player.position.y;
+                const pDist = Math.sqrt((this.player.position.x - anchorX) ** 2 + (this.player.position.y - anchorY) ** 2);
+                const vDist = Math.sqrt((target.position.x - anchorX) ** 2 + (target.position.y - anchorY) ** 2);
+                console.log(`[POS] sys=${sys} velF=${velFactor.toFixed(2)} pDist=${pDist.toFixed(0)} vDist=${vDist.toFixed(0)} hold=${holdDist.toFixed(0)}`);
+            }
             
             // Check if grapple button was released → throw
             const grappleBtn = this.player.grappleButton;
@@ -2036,6 +2147,10 @@ class BrawlerGame {
                             this.player.grappleAngle = Math.atan2(dy, dx);
                             this.player.grappleAngularVel = 0;
                             
+                            // Anchor point for shared fulcrum mode
+                            this.player.grappleAnchorX = this.player.position.x;
+                            this.player.grappleAnchorY = this.player.position.y;
+                            
                             target.isGrappled = true;
                             target.grappledBy = this.player;
                             target.velocity.x = 0;
@@ -2080,6 +2195,35 @@ class BrawlerGame {
         this.frameCount++;
         this.updateInput();
         this.player.update(FRAME_TIME, this.input);
+        
+        // UPDATE PLAYER FACING - face weighted centroid (closer = more attention)
+        if (!this.player.isRespawning && !this.player.isGrappling) {
+            // Calculate distance-weighted centroid of all dummies
+            // Closer fighters pull attention more (weight = 1 / distance²)
+            let weightedX = 0, weightedY = 0, totalWeight = 0;
+            this.dummies.forEach(d => {
+                if (!d.isRespawning) {
+                    const dx = d.position.x - this.player.position.x;
+                    const dy = d.position.y - this.player.position.y;
+                    const distSq = dx * dx + dy * dy;
+                    const minDist = 50; // Prevent division by tiny numbers
+                    const weight = 1 / Math.max(distSq, minDist * minDist);
+                    weightedX += d.position.x * weight;
+                    weightedY += d.position.y * weight;
+                    totalWeight += weight;
+                }
+            });
+            if (totalWeight > 0) {
+                const focusX = weightedX / totalWeight;
+                const focusY = weightedY / totalWeight;
+                // Face toward weighted focus point
+                const dx = focusX - this.player.position.x;
+                const dy = focusY - this.player.position.y;
+                const targetFacing = Math.atan2(dy, dx);
+                this.player.updateFacing(targetFacing, FRAME_TIME);
+            }
+        }
+        
         this.handleAttacks();
         
         this.dummies.forEach(dummy => {
