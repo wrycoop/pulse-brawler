@@ -337,8 +337,15 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - simple tether physics
+      // Continue grapple - tether transfers momentum
       const victim = dummies[grapple.victimIdx];
+      
+      // === MOMENTUM TRANSFER ===
+      // Player movement pulls victim through tether
+      // Victim gains velocity in direction of player movement
+      const transferRate = (grp.momentumTransfer ?? 60) / 100;  // 0-100 → 0-1
+      victim.vx += player.vx * transferRate;
+      victim.vy += player.vy * transferRate;
       
       // Vector from player to victim
       const dx = victim.x - player.x;
@@ -350,8 +357,6 @@ function update() {
       const ny = dy / dist;
       
       // === TETHER CONSTRAINT ===
-      // Victim can't be further than tether length from player
-      // Player movement drags them, they trail behind with inertia
       if (dist > tetherLength) {
         // Snap to tether length
         victim.x = player.x + nx * tetherLength;
