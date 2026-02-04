@@ -391,15 +391,16 @@ function update() {
       const tangentY = Math.cos(grapple.targetAngle);
       const torqueInput = -(input.x * tangentX + input.y * tangentY);  // Project stick onto tangent (inverted)
       
-      // Torque accelerates angular velocity (F = ma, a = F/m)
-      const torqueStrength = (grp.torqueStrength ?? 50) / 50000;  // 0-100 → 0-0.002
-      const mass = (grp.targetMass ?? 50) / 10;  // 0-100 → 0-10, higher = heavier
+      // spinForce: 0-100, higher = easier to spin up
+      const torqueStrength = (grp.spinForce ?? 50) / 50000;
+      // Implicit mass: low spinForce = heavier feel
+      const mass = (100 - (grp.spinForce ?? 50)) / 20;
       const angularAccel = (torqueInput * torqueStrength) / (1 + mass * 0.1);
       
       grapple.angularVel += angularAccel;
       
-      // Angular drag (momentum decays slowly)
-      const angularDrag = 0.995 - ((grp.angularDrag ?? 20) / 100) * 0.03;  // 0-100 → 0.965-0.995
+      // spinDrag: 0-100, higher = spin persists longer
+      const angularDrag = 0.97 + ((grp.spinDrag ?? 50) / 100) * 0.025;  // → 0.97-0.995
       grapple.angularVel *= angularDrag;
       
       // === UPDATE TARGET ANGLE FROM ANGULAR VELOCITY ===
@@ -411,8 +412,9 @@ function update() {
       
       // === UPDATE VICTIM VELOCITY (for release) ===
       const tangentSpeed = grapple.angularVel * tetherLength;
-      victim.vx = tangentX * tangentSpeed * 60;  // Scale for release
-      victim.vy = tangentY * tangentSpeed * 60;
+      const throwMult = 0.5 + ((grp.throwForce ?? 50) / 100) * 1.0;  // 0-100 → 0.5-1.5x
+      victim.vx = tangentX * tangentSpeed * 60 * throwMult;
+      victim.vy = tangentY * tangentSpeed * 60 * throwMult;
       
       // === VISUAL WEIGHT: Player leans IN stick direction ===
       // No force - just visual. Shows resistance to centrifugal pull.
