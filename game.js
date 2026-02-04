@@ -294,7 +294,8 @@ let grapple = {
   active: false,
   victimIdx: -1,
   holdFrames: 0,
-  angularVel: 0  // radians per frame
+  playerFacing: 0,      // Player's current facing angle (radians)
+  targetAngle: 0        // Angle of target around player (radians)
 };
 
 function init() {
@@ -379,78 +380,75 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - lean control + tether constraint
+      // Continue grapple - HAMMER THROW physics
       const victim = dummies[grapple.victimIdx];
       
-      // === PLAYER STICK → VICTIM LEAN (tether-relative, both axes inverted) ===
+      // === PLAYER ROTATION ENGINE ===
+      // Desired facing = opposite of stick direction
+      const stickMag = Math.sqrt(input.x * input.x + input.y * input.y);
+      
+      if (stickMag > 0.1) {
+        // Stick angle (where stick points)
+        const stickAngle = Math.atan2(input.y, input.x);
+        // Desired facing = opposite of stick
+        const desiredFacing = stickAngle + Math.PI;
+        
+        // Calculate shortest rotation to desired facing
+        let angleDiff = desiredFacing - grapple.playerFacing;
+        // Normalize to [-PI, PI]
+        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
+        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
+        
+        // Rotation speed - how fast player can rotate
+        // Reduced by target's mass (resistance)
+        const baseRotSpeed = (grp.rotationSpeed ?? 50) / 1000;  // 0-100 → 0-0.1 rad/frame
+        const massResistance = (grp.massResistance ?? 50) / 100;  // 0-100 → 0-1
+        const rotSpeed = baseRotSpeed * (1 - massResistance * 0.8);  // Mass slows rotation
+        
+        // Rotate toward desired facing
+        const rotAmount = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), rotSpeed);
+        grapple.playerFacing += rotAmount;
+        
+        // === DRAG TARGET WITH ROTATION ===
+        // Target angle follows player rotation (they're tethered)
+        grapple.targetAngle += rotAmount;
+        
+        // Update target velocity from rotation (tangential)
+        const angularVel = rotAmount;  // rad/frame
+        const tangentSpeed = angularVel * tetherLength;
+        const tangentX = -Math.sin(grapple.targetAngle);
+        const tangentY = Math.cos(grapple.targetAngle);
+        
+        // Add tangential velocity (accumulates = momentum)
+        victim.vx += tangentX * tangentSpeed * 2;
+        victim.vy += tangentY * tangentSpeed * 2;
+        
+        // === CENTRIFUGAL PULL ON PLAYER ===
+        const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
+        const centrifugal = speed * speed / tetherLength * 0.01;
+        const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
+        player.applyForce(pullDir.x * centrifugal, pullDir.y * centrifugal);
+      }
+      
+      // === POSITION TARGET ON TETHER ===
+      victim.x = player.x + Math.cos(grapple.targetAngle) * tetherLength;
+      victim.y = player.y + Math.sin(grapple.targetAngle) * tetherLength;
+      
+      // === VICTIM LEAN (visual - shows velocity direction) ===
       const maxLean = tuning.lean?.maxLean ?? 20;
-      const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
-      const leanControl = (grp.leanControl ?? 80) / 100;
-      
-      // Get tether direction
-      const dx = victim.x - player.x;
-      const dy = victim.y - player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      
-      // Radial (toward victim) and tangent (perpendicular) unit vectors
-      const rx = dx / dist;
-      const ry = dy / dist;
-      const tx = -ry;  // tangent (perpendicular to radial)
-      const ty = rx;
-      
-      // Project player input onto tether-relative axes
-      const myRadial = input.x * rx + input.y * ry;    // How much I'm leaning toward/away from them
-      const myTangent = input.x * tx + input.y * ty;   // How much I'm leaning sideways (perpendicular)
-      
-      // Radial: SAME (I toward them → they away from me = same outward direction)
-      // Tangent: INVERT (I lean my-left → they lean their-left = opposite world direction)
-      const theirRadial = myRadial;
-      const theirTangent = -myTangent;
-      
-      // Convert back to world-space lean
-      const targetLeanX = (theirRadial * rx + theirTangent * tx) * maxLean * leanControl;
-      const targetLeanY = (theirRadial * ry + theirTangent * ty) * maxLean * leanControl;
-      victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
-      victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
+      const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
+      if (speed > 0.1) {
+        victim.leanX = (victim.vx / speed) * Math.min(speed * 2, maxLean);
+        victim.leanY = (victim.vy / speed) * Math.min(speed * 2, maxLean);
+      }
       
       // Log every 30 frames
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        const msg = `myRad:${myRadial.toFixed(2)} myTan:${myTangent.toFixed(2)} → theirRad:${theirRadial.toFixed(2)} theirTan:${theirTangent.toFixed(2)} → lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
+        const msg = `facing:${(grapple.playerFacing * 180/Math.PI).toFixed(0)}° targetAng:${(grapple.targetAngle * 180/Math.PI).toFixed(0)}° vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)}) speed:${speed.toFixed(2)}`;
         fetch('/console', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ level: 'log', args: [msg] }) }).catch(() => {});
-      }
-      
-      // === LEAN → FORCE ===
-      const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
-      victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
-      
-      // === TETHER CONSTRAINT (soft spring, no hard snap) ===
-      // Reuse dx, dy, dist from above
-      const nx = dx / dist;
-      const ny = dy / dist;
-      
-      if (dist > 0.1) {
-        
-        // Spring force: pull victim toward tether length (not hard snap)
-        const stretch = dist - tetherLength;
-        if (stretch > 0) {
-          const springStrength = (grp.springStrength ?? 60) / 100;  // 0-100 → 0-1
-          victim.applyForce(-nx * stretch * springStrength, -ny * stretch * springStrength);
-          
-          // Counter-pull on player (weight feel)
-          const pullStrength = (grp.playerPull ?? 30) / 100;
-          player.applyForce(nx * stretch * pullStrength, ny * stretch * pullStrength);
-        }
-        
-        // Dampen radial velocity only (preserve tangent = orbit)
-        const radialVel = victim.vx * nx + victim.vy * ny;
-        if (radialVel > 0) {
-          const radialDamping = 0.7;  // Remove 30% of outward velocity
-          victim.vx -= nx * radialVel * (1 - radialDamping);
-          victim.vy -= ny * radialVel * (1 - radialDamping);
-        }
       }
     }
   } else {
@@ -469,7 +467,9 @@ function update() {
           // Initiate grapple
           grapple.active = true;
           grapple.victimIdx = heldIdx;
-          grapple.angularVel = 0;
+          // Initialize angles based on current position
+          grapple.targetAngle = Math.atan2(dy, dx);
+          grapple.playerFacing = grapple.targetAngle + Math.PI;  // Face toward target
         }
       }
     } else {
