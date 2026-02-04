@@ -320,7 +320,6 @@ function update() {
   const grp = tuning.grapple || {};
   const grappleRange = grp.range ?? 80;
   const holdThreshold = grp.holdFrames ?? 10;
-  const spinForce = (grp.spinForce ?? 50) / 1000;    // 0-100 → 0-0.1 (tangent push)
   const tetherLength = grp.tetherLength ?? 60;
   
   // Check for grapple initiation or release
@@ -338,7 +337,7 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - spring physics
+      // Continue grapple - tether drag physics (judo style)
       const victim = dummies[grapple.victimIdx];
       
       // Vector from player to victim
@@ -349,30 +348,40 @@ function update() {
       
       const nx = dx / dist;  // Radial unit vector (outward)
       const ny = dy / dist;
-      const tx = -ny;        // Tangent unit vector (CCW)
-      const ty = nx;
       
-      // 1. Spring force: pull victim toward tether length
-      const springStiffness = (grp.springStiffness ?? 50) / 500;  // 0-100 → 0-0.2
-      const stretch = dist - tetherLength;
-      const springForce = stretch * springStiffness;
-      victim.applyForce(-nx * springForce, -ny * springForce);
+      // Tether constraint: if too far, pull hard; if close, no pull
+      // This creates the "weight" - victim has inertia, tether drags them
+      const maxTether = tetherLength;
+      const minTether = tetherLength * 0.5;  // Can get closer during swing
       
-      // 2. Player input → tangential force on victim (spin them)
-      const tangentInput = input.x * tx + input.y * ty;  // How much input is tangent
-      const tangentForce = tangentInput * spinForce * 10;
-      victim.applyForce(tx * tangentForce, ty * tangentForce);
+      if (dist > maxTether) {
+        // Pull victim toward max tether distance
+        const overshoot = dist - maxTether;
+        const pullStrength = (grp.tetherPull ?? 50) / 100;  // 0-100 → 0-1
+        const pullForce = overshoot * pullStrength;
+        victim.applyForce(-nx * pullForce, -ny * pullForce);
+        
+        // Also pull player toward victim slightly (Newton's 3rd law - gives weight feel)
+        const playerPullRatio = 0.2;  // Player feels 20% of the pull
+        player.applyForce(nx * pullForce * playerPullRatio, ny * pullForce * playerPullRatio);
+      }
       
-      // 3. Dampen victim's radial velocity (keep them orbiting, not flying away)
-      const radialVel = victim.vx * nx + victim.vy * ny;
-      victim.vx -= nx * radialVel * 0.3;  // Remove 30% of radial velocity
-      victim.vy -= ny * radialVel * 0.3;
+      // Hard constraint: can't exceed max tether
+      if (dist > maxTether) {
+        const excess = dist - maxTether;
+        victim.x -= nx * excess * 0.5;
+        victim.y -= ny * excess * 0.5;
+        player.x += nx * excess * 0.5;
+        player.y += ny * excess * 0.5;
+      }
       
-      // 4. Lean responds to centripetal acceleration (lean outward when spinning fast)
-      const tangentVel = victim.vx * tx + victim.vy * ty;
-      const centrifugalLean = Math.abs(tangentVel) * 0.5;
-      victim.leanX = nx * centrifugalLean;
-      victim.leanY = ny * centrifugalLean;
+      // Lean responds to velocity (dragged direction)
+      const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
+      const maxLean = tuning.lean?.maxLean ?? 20;
+      if (speed > 0.1) {
+        victim.leanX = (victim.vx / speed) * Math.min(speed * 2, maxLean);
+        victim.leanY = (victim.vy / speed) * Math.min(speed * 2, maxLean);
+      }
     }
   } else {
     // Not grappling - check for initiation
