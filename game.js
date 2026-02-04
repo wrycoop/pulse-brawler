@@ -487,12 +487,11 @@ function update() {
     
     // Skip lean/movement update if grappled (we control their lean)
     if (grapple.active && grapple.victimIdx === i) {
-      // Still apply friction to velocity
-      const friction = 0.85 + ((tuning.lean?.friction ?? 50) / 100) * 0.14;
-      d.vx *= friction;
-      d.vy *= friction;
-      d.x += d.vx;
-      d.y += d.vy;
+      // Grapple code positions victim directly at tether distance
+      // Don't apply velocity to position - that would break the tether constraint
+      // Velocity is only used at release moment
+      d.vx = 0;
+      d.vy = 0;
     } else {
       d.update(0, 0); // No input - just physics
     }
