@@ -337,13 +337,17 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - tether transfers momentum
+      // Continue grapple - heavy tether physics
       const victim = dummies[grapple.victimIdx];
       
-      // === MOMENTUM TRANSFER ===
-      // Player movement pulls victim through tether
-      // Victim gains velocity in direction of player movement
-      const transferRate = (grp.momentumTransfer ?? 60) / 100;  // 0-100 → 0-1
+      // === WEIGHT: Drag on victim (resists motion) ===
+      const drag = 1 - ((grp.victimDrag ?? 40) / 100) * 0.3;  // 0-100 → 0.88-1.0
+      victim.vx *= drag;
+      victim.vy *= drag;
+      
+      // === MOMENTUM TRANSFER (small) ===
+      // Player movement pulls victim, but they resist (weight)
+      const transferRate = (grp.momentumTransfer ?? 20) / 1000;  // 0-100 → 0-0.1
       victim.vx += player.vx * transferRate;
       victim.vy += player.vy * transferRate;
       
