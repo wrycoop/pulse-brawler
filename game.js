@@ -338,56 +338,49 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - hammer toss physics
+      // Continue grapple - lean control + tether constraint
       const victim = dummies[grapple.victimIdx];
       
-      // Current angle of victim around player
+      // === PLAYER STICK → VICTIM LEAN ===
+      // Direct mapping: player input controls victim's lean
+      const maxLean = tuning.lean?.maxLean ?? 20;
+      const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
+      const leanControl = (grp.leanControl ?? 80) / 100;
+      
+      // Both axes same screen direction
+      const targetLeanX = input.x * maxLean * leanControl;
+      const targetLeanY = input.y * maxLean * leanControl;
+      victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
+      victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
+      
+      // === LEAN → FORCE (same as movement physics) ===
+      const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
+      victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
+      
+      // === TETHER CONSTRAINT ===
       const dx = victim.x - player.x;
       const dy = victim.y - player.y;
-      const angle = Math.atan2(dy, dx);
+      const dist = Math.sqrt(dx * dx + dy * dy);
       
-      // Radial and tangent directions
-      const nx = Math.cos(angle);  // outward
-      const ny = Math.sin(angle);
-      const tx = -ny;  // tangent (counter-clockwise)
-      const ty = nx;
-      
-      // === STICK INPUT → ANGULAR VELOCITY ===
-      // Tangent component of stick adds spin
-      const tangentInput = input.x * tx + input.y * ty;
-      const spinAccel = (grp.spinAccel ?? 50) / 10000;  // 0-100 → 0-0.01
-      grapple.angularVel += tangentInput * spinAccel;
-      
-      // Radial component: pulling AWAY from victim (negative radial) helps maintain orbit
-      const radialInput = input.x * nx + input.y * ny;
-      // If not pulling back enough, orbit loses energy faster
-      const pullBack = Math.max(0, -radialInput);  // positive when pulling away
-      const baseDrag = 0.98;
-      const pullBonus = pullBack * 0.015;  // pulling back reduces drag
-      grapple.angularVel *= Math.min(1, baseDrag + pullBonus);
-      
-      // === UPDATE POSITION (victim orbits player) ===
-      const newAngle = angle + grapple.angularVel;
-      victim.x = player.x + Math.cos(newAngle) * tetherLength;
-      victim.y = player.y + Math.sin(newAngle) * tetherLength;
-      
-      // === STORE TANGENTIAL VELOCITY (for release) ===
-      const tangentSpeed = grapple.angularVel * tetherLength;
-      const newTx = -Math.sin(newAngle);
-      const newTy = Math.cos(newAngle);
-      victim.vx = newTx * tangentSpeed;
-      victim.vy = newTy * tangentSpeed;
-      
-      // === CENTRIFUGAL COUNTER-PULL ON PLAYER ===
-      const centrifugal = grapple.angularVel * grapple.angularVel * tetherLength;
-      const pullStrength = (grp.centrifugalPull ?? 50) / 100;
-      player.applyForce(nx * centrifugal * pullStrength, ny * centrifugal * pullStrength);
-      
-      // === VISUAL: Lean outward (centrifugal) ===
-      const maxLean = tuning.lean?.maxLean ?? 20;
-      const leanAmount = Math.min(Math.abs(grapple.angularVel) * 200, maxLean);
-      victim.leanX = nx * leanAmount;
-      victim.leanY = ny * leanAmount;
+      if (dist > tetherLength && dist > 0.1) {
+        const nx = dx / dist;
+        const ny = dy / dist;
+        
+        // Snap victim to tether length
+        victim.x = player.x + nx * tetherLength;
+        victim.y = player.y + ny * tetherLength;
+        
+        // Remove outward velocity component (tether catches it)
+        const radialVel = victim.vx * nx + victim.vy * ny;
+        if (radialVel > 0) {
+          victim.vx -= nx * radialVel;
+          victim.vy -= ny * radialVel;
+        }
+        
+        // Counter-pull on player (weight feel)
+        const pullStrength = (grp.playerPull ?? 40) / 100;
+        player.applyForce(nx * (dist - tetherLength) * pullStrength, ny * (dist - tetherLength) * pullStrength);
+      }
     }
   } else {
     // Not grappling - check for initiation
