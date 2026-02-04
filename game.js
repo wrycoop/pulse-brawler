@@ -395,6 +395,13 @@ function update() {
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
       
+      // Log lean values every 30 frames
+      if (!grapple.logCounter) grapple.logCounter = 0;
+      grapple.logCounter++;
+      if (grapple.logCounter % 30 === 0) {
+        console.log(`[GRAPPLE] input:(${input.x.toFixed(2)},${input.y.toFixed(2)}) → target:(${targetLeanX.toFixed(1)},${targetLeanY.toFixed(1)}) → victim.lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) | victim.vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`);
+      }
+      
       // === LEAN → FORCE (same as movement physics) ===
       const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
       victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
