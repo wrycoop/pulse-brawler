@@ -120,6 +120,30 @@ const server = http.createServer(async (req, res) => {
     });
     return;
   }
+  
+  // Screenshot capture from browser
+  if (req.method === 'POST' && urlPath === '/screenshot') {
+    let body = '';
+    req.on('data', chunk => body += chunk);
+    req.on('end', () => {
+      try {
+        const { image } = JSON.parse(body);
+        // image is base64 data URL
+        const base64Data = image.replace(/^data:image\/png;base64,/, '');
+        const filename = `screenshot-${Date.now()}.png`;
+        const filepath = path.join(__dirname, filename);
+        fs.writeFileSync(filepath, base64Data, 'base64');
+        console.log(`📸 Screenshot saved: ${filename}`);
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({ success: true, filename }));
+      } catch (e) {
+        console.error('Screenshot error:', e);
+        res.writeHead(500);
+        res.end(JSON.stringify({ error: e.message }));
+      }
+    });
+    return;
+  }
 
   // Static file serving
   const cleanUrl = req.url.split('?')[0];

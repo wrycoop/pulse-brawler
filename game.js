@@ -242,6 +242,31 @@ function getAttackInput() {
   return { pressed, held };
 }
 
+// Screenshot capture - press P or Share button (gamepad button 8)
+let lastScreenshot = false;
+function checkScreenshot() {
+  let shouldCapture = false;
+  
+  if (keysJustPressed['p']) shouldCapture = true;
+  
+  const gp = navigator.getGamepads()[0];
+  if (gp && gp.buttons[8]?.pressed && !lastScreenshot) {
+    shouldCapture = true;
+  }
+  lastScreenshot = gp?.buttons[8]?.pressed || false;
+  
+  if (shouldCapture) {
+    const image = canvas.toDataURL('image/png');
+    fetch('/screenshot', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ image })
+    }).then(r => r.json()).then(data => {
+      console.log('Screenshot saved:', data.filename);
+    }).catch(e => console.error('Screenshot failed:', e));
+  }
+}
+
 // Game state
 let player;
 let dummies = [];
@@ -568,6 +593,7 @@ function draw() {
 function loop() {
   update();
   draw();
+  checkScreenshot();
   requestAnimationFrame(loop);
 }
 
