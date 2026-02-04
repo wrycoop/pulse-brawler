@@ -382,32 +382,43 @@ function update() {
       // Continue grapple - lean control + tether constraint
       const victim = dummies[grapple.victimIdx];
       
-      // === PLAYER STICK → VICTIM LEAN ===
-      // Direct mapping: player input controls victim's lean
+      // === PLAYER STICK → VICTIM LEAN (tether-relative) ===
       const maxLean = tuning.lean?.maxLean ?? 20;
       const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
       const leanControl = (grp.leanControl ?? 80) / 100;
       
-      // X inverted (my left = their left = opposite screen direction)
-      // Y same (my back = their toward = same screen direction)
-      const targetLeanX = -input.x * maxLean * leanControl;
-      const targetLeanY = input.y * maxLean * leanControl;
+      // Get tether direction
+      const dx = victim.x - player.x;
+      const dy = victim.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
+      
+      // Radial (outward from player) and tangent (perpendicular, CCW) directions
+      const rx = dx / dist;
+      const ry = dy / dist;
+      const tx = -ry;  // tangent (perpendicular to radial)
+      const ty = rx;
+      
+      // Transform input: X → tangent (rotation), Y → radial (toward/away)
+      // Invert X so "my right" creates clockwise rotation
+      const tangentInput = -input.x;
+      const radialInput = -input.y;  // Pull back (negative Y) = pull toward = negative radial
+      
+      // Convert to screen-space lean
+      const targetLeanX = (tangentInput * tx + radialInput * rx) * maxLean * leanControl;
+      const targetLeanY = (tangentInput * ty + radialInput * ry) * maxLean * leanControl;
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
       
-      // Log lean values every 30 frames (send to server)
+      // Log every 30 frames
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        const msg = `input:(${input.x.toFixed(2)},${input.y.toFixed(2)}) → target:(${targetLeanX.toFixed(1)},${targetLeanY.toFixed(1)}) → victim.lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) | vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
-        fetch('/console', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ level: 'log', args: [msg] })
-        }).catch(() => {});
+        const msg = `in:(${input.x.toFixed(2)},${input.y.toFixed(2)}) tang:${tangentInput.toFixed(2)} rad:${radialInput.toFixed(2)} → lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
+        fetch('/console', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ level: 'log', args: [msg] }) }).catch(() => {});
       }
       
-      // === LEAN → FORCE (same as movement physics) ===
+      // === LEAN → FORCE ===
       const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
       victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
       
