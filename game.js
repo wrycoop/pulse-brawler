@@ -389,7 +389,7 @@ function update() {
       // Calculate torque: how much stick is perpendicular to current tether
       const tangentX = -Math.sin(grapple.targetAngle);
       const tangentY = Math.cos(grapple.targetAngle);
-      const torqueInput = input.x * tangentX + input.y * tangentY;  // Project stick onto tangent
+      const torqueInput = -(input.x * tangentX + input.y * tangentY);  // Project stick onto tangent (inverted)
       
       // Torque accelerates angular velocity (F = ma, a = F/m)
       const torqueStrength = (grp.torqueStrength ?? 50) / 50000;  // 0-100 → 0-0.002
