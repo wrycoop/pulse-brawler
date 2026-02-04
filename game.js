@@ -250,10 +250,12 @@ function checkScreenshot() {
   if (keysJustPressed['p']) shouldCapture = true;
   
   const gp = navigator.getGamepads()[0];
-  if (gp && gp.buttons[8]?.pressed && !lastScreenshot) {
+  // Button 8 = Share/Create, Button 10 = L3 (left stick click)
+  const sharePressed = gp?.buttons[8]?.pressed || gp?.buttons[10]?.pressed;
+  if (gp && sharePressed && !lastScreenshot) {
     shouldCapture = true;
   }
-  lastScreenshot = gp?.buttons[8]?.pressed || false;
+  lastScreenshot = sharePressed || false;
   
   if (shouldCapture) {
     const image = canvas.toDataURL('image/png');
