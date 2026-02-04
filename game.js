@@ -347,8 +347,9 @@ function update() {
       const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
       const leanControl = (grp.leanControl ?? 80) / 100;
       
-      // Both axes same screen direction
-      const targetLeanX = input.x * maxLean * leanControl;
+      // X inverted (my left = their left = opposite screen direction)
+      // Y same (my back = their toward = same screen direction)
+      const targetLeanX = -input.x * maxLean * leanControl;
       const targetLeanY = input.y * maxLean * leanControl;
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
