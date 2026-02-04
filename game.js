@@ -356,12 +356,17 @@ function update() {
       const maxLean = tuning.lean?.maxLean ?? 20;
       const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
       
-      // Apply player input to victim's lean
-      // X sign depends on alignment: vertical = invert, horizontal = same
-      const isVertical = Math.abs(dy) > Math.abs(dx);
-      const lateralSign = isVertical ? -1 : 1;
-      const targetLeanX = input.x * lateralSign * maxLean * leanControl;
-      const targetLeanY = input.y * maxLean * leanControl;
+      // Apply player input to victim's lean (in victim's local space)
+      // Victim faces toward player
+      const facingX = -nx;  // toward player
+      const facingY = -ny;
+      // Victim's "right" in top-down: (-facingY, facingX)
+      const rightX = -facingY;
+      const rightY = facingX;
+      
+      // Player X → victim's right, Player Y → victim's toward
+      const targetLeanX = (input.x * rightX + input.y * facingX) * maxLean * leanControl;
+      const targetLeanY = (input.x * rightY + input.y * facingY) * maxLean * leanControl;
       const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
