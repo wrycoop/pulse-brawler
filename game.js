@@ -402,10 +402,9 @@ function update() {
       const myRadial = input.x * rx + input.y * ry;    // How much I'm leaning toward/away from them
       const myTangent = input.x * tx + input.y * ty;   // How much I'm leaning sideways (perpendicular)
       
-      // INVERT both for victim's lean (facing each other)
-      // - I lean toward → they lean away
-      // - I lean my-left → they lean their-left (opposite world direction)
-      const theirRadial = -myRadial;
+      // Radial: SAME (I toward them → they away from me = same outward direction)
+      // Tangent: INVERT (I lean my-left → they lean their-left = opposite world direction)
+      const theirRadial = myRadial;
       const theirTangent = -myTangent;
       
       // Convert back to world-space lean
