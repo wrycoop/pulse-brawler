@@ -420,10 +420,10 @@ function update() {
       const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
       const playerLeanAmount = Math.min(Math.abs(grapple.angularVel) * 400, maxLean);
       // Lean toward stick direction (which is away from target)
-      const stickMag = Math.sqrt(input.x * input.x + input.y * input.y);
-      if (stickMag > 0.1) {
-        player.leanX = input.x * playerLeanAmount / stickMag;
-        player.leanY = input.y * playerLeanAmount / stickMag;
+      const inputMag = Math.sqrt(input.x * input.x + input.y * input.y);
+      if (inputMag > 0.1) {
+        player.leanX = input.x * playerLeanAmount / inputMag;
+        player.leanY = input.y * playerLeanAmount / inputMag;
       } else {
         player.leanX = -pullDir.x * playerLeanAmount;  // Fallback: away from target
         player.leanY = -pullDir.y * playerLeanAmount;
