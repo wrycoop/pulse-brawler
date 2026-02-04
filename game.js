@@ -294,7 +294,7 @@ let grapple = {
   active: false,
   victimIdx: -1,
   holdFrames: 0,
-  playerFacing: 0,      // Player's current facing angle (radians)
+  angularVel: 0,        // Current spin speed (radians/frame)
   targetAngle: 0        // Angle of target around player (radians)
 };
 
@@ -380,73 +380,57 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - HAMMER THROW physics
+      // Continue grapple - HAMMER THROW with torque/inertia
       const victim = dummies[grapple.victimIdx];
       
-      // === PLAYER ROTATION ENGINE ===
-      // Desired facing = opposite of stick direction
+      // === TORQUE FROM STICK INPUT ===
       const stickMag = Math.sqrt(input.x * input.x + input.y * input.y);
       
-      if (stickMag > 0.1) {
-        // Stick angle (where stick points)
-        const stickAngle = Math.atan2(input.y, input.x);
-        // Desired facing = opposite of stick (back faces stick direction)
-        const desiredFacing = stickAngle;  // Face AWAY from stick = back toward stick
-        
-        // Calculate shortest rotation to desired facing
-        let angleDiff = desiredFacing - grapple.playerFacing;
-        // Normalize to [-PI, PI]
-        while (angleDiff > Math.PI) angleDiff -= 2 * Math.PI;
-        while (angleDiff < -Math.PI) angleDiff += 2 * Math.PI;
-        
-        // Rotation speed - how fast player can rotate
-        // Reduced by target's mass (resistance)
-        const baseRotSpeed = (grp.rotationSpeed ?? 50) / 1000;  // 0-100 → 0-0.1 rad/frame
-        const massResistance = (grp.massResistance ?? 50) / 100;  // 0-100 → 0-1
-        const rotSpeed = baseRotSpeed * (1 - massResistance * 0.8);  // Mass slows rotation
-        
-        // Rotate toward desired facing
-        const rotAmount = Math.sign(angleDiff) * Math.min(Math.abs(angleDiff), rotSpeed);
-        grapple.playerFacing += rotAmount;
-        
-        // === DRAG TARGET WITH ROTATION ===
-        // Target angle follows player rotation (they're tethered)
-        grapple.targetAngle += rotAmount;
-        
-        // Update target velocity from rotation (tangential)
-        const angularVel = rotAmount;  // rad/frame
-        const tangentSpeed = angularVel * tetherLength;
-        const tangentX = -Math.sin(grapple.targetAngle);
-        const tangentY = Math.cos(grapple.targetAngle);
-        
-        // Add tangential velocity (accumulates = momentum)
-        victim.vx += tangentX * tangentSpeed * 2;
-        victim.vy += tangentY * tangentSpeed * 2;
-        
-        // === CENTRIFUGAL PULL ON PLAYER ===
-        const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
-        const centrifugal = speed * speed / tetherLength * 0.01;
-        const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
-        player.applyForce(pullDir.x * centrifugal, pullDir.y * centrifugal);
-      }
+      // Calculate torque: how much stick is perpendicular to current tether
+      const tangentX = -Math.sin(grapple.targetAngle);
+      const tangentY = Math.cos(grapple.targetAngle);
+      const torqueInput = input.x * tangentX + input.y * tangentY;  // Project stick onto tangent
+      
+      // Torque accelerates angular velocity (F = ma, a = F/m)
+      const torqueStrength = (grp.torqueStrength ?? 50) / 50000;  // 0-100 → 0-0.002
+      const mass = (grp.targetMass ?? 50) / 10;  // 0-100 → 0-10, higher = heavier
+      const angularAccel = (torqueInput * torqueStrength) / (1 + mass * 0.1);
+      
+      grapple.angularVel += angularAccel;
+      
+      // Angular drag (momentum decays slowly)
+      const angularDrag = 0.995 - ((grp.angularDrag ?? 20) / 100) * 0.03;  // 0-100 → 0.965-0.995
+      grapple.angularVel *= angularDrag;
+      
+      // === UPDATE TARGET ANGLE FROM ANGULAR VELOCITY ===
+      grapple.targetAngle += grapple.angularVel;
       
       // === POSITION TARGET ON TETHER ===
       victim.x = player.x + Math.cos(grapple.targetAngle) * tetherLength;
       victim.y = player.y + Math.sin(grapple.targetAngle) * tetherLength;
       
-      // === VICTIM LEAN (visual - shows velocity direction) ===
+      // === UPDATE VICTIM VELOCITY (for release) ===
+      const tangentSpeed = grapple.angularVel * tetherLength;
+      victim.vx = tangentX * tangentSpeed * 60;  // Scale for release
+      victim.vy = tangentY * tangentSpeed * 60;
+      
+      // === CENTRIFUGAL PULL ON PLAYER ===
+      // Proportional to angular velocity squared (spin faster = more pull)
+      const centrifugal = grapple.angularVel * grapple.angularVel * tetherLength * ((grp.centrifugalStrength ?? 50) / 5);
+      const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
+      player.applyForce(pullDir.x * centrifugal, pullDir.y * centrifugal);
+      
+      // === VICTIM LEAN (outward from centrifugal) ===
       const maxLean = tuning.lean?.maxLean ?? 20;
-      const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
-      if (speed > 0.1) {
-        victim.leanX = (victim.vx / speed) * Math.min(speed * 2, maxLean);
-        victim.leanY = (victim.vy / speed) * Math.min(speed * 2, maxLean);
-      }
+      const leanAmount = Math.min(Math.abs(grapple.angularVel) * 500, maxLean);
+      victim.leanX = pullDir.x * leanAmount;
+      victim.leanY = pullDir.y * leanAmount;
       
       // Log every 30 frames
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        const msg = `facing:${(grapple.playerFacing * 180/Math.PI).toFixed(0)}° targetAng:${(grapple.targetAngle * 180/Math.PI).toFixed(0)}° vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)}) speed:${speed.toFixed(2)}`;
+        const msg = `angVel:${grapple.angularVel.toFixed(4)} torque:${torqueInput.toFixed(2)} angle:${(grapple.targetAngle * 180/Math.PI).toFixed(0)}°`;
         fetch('/console', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ level: 'log', args: [msg] }) }).catch(() => {});
       }
@@ -467,9 +451,9 @@ function update() {
           // Initiate grapple
           grapple.active = true;
           grapple.victimIdx = heldIdx;
-          // Initialize angles based on current position
+          // Initialize: target angle from current position, zero spin
           grapple.targetAngle = Math.atan2(dy, dx);
-          grapple.playerFacing = grapple.targetAngle + Math.PI;  // Face toward target
+          grapple.angularVel = 0;
         }
       }
     } else {
