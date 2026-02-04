@@ -395,56 +395,55 @@ Best to worst for attacker:
 
 ### 5.1 Overview
 
-The grapple is an **orbital physics** system. You grab the opponent and spin them around yourself. Your stick controls the spin, building angular velocity. Release to throw.
+The grapple is a **player rotation** system, like a real hammer throw. You grab the opponent, then **you spin** — they get dragged around by the tether. Your rotation against their mass creates weight and builds momentum.
 
-**Key insight from development:** Spin drives lean, not lean drives movement. Angular velocity is the accumulative force; lean is the visual result (centrifugal effect).
+**Core mental model:** "I want my back to face my stick direction. To achieve that, I rotate — and the target gets dragged along."
 
 ### 5.2 Initiation
 
 | Action | Result |
 |--------|--------|
 | Hold target's button + in range | Grab |
-| Initial yank | Step back + pull to off-balance / jumpstart momentum |
+| Initial grab | Lock target at tether distance, player faces target |
 
-### 5.3 Orbital Physics
+### 5.3 Player Rotation Physics
 
-**Model:**
-- Track victim's **orbital angle** around you
-- Track **angular velocity** (spin speed)
-- Your stick adds **torque** (accelerates spin)
-- Angular velocity moves their position
-- Lean = outward, proportional to spin speed (centrifugal effect)
+**The key insight:** The player has **orientation** (facing direction). Orientation is physics, not cosmetic.
 
-This creates **weight** — you're accelerating a mass, not directly positioning them. Spin has momentum that persists and builds.
+**Rotation Engine:**
+1. **Stick direction** = where you want your back to face
+2. **Desired facing** = opposite of stick direction
+3. Player **rotates toward desired facing** (shortest path, CW or CCW)
+4. Target is **tethered** at fixed distance
+5. Player rotation **drags target around** (they're attached)
+6. Target's **mass resists** rotation → weight feel
+7. **Centrifugal force** pulls player toward target proportional to spin²
+
+**Building momentum:**
+- Keep circling the stick → keep rotating → keep dragging them
+- Their velocity accumulates with each revolution
+- Mass resistance means you have to **work** for the speed
+- Pulling back (resisting centrifugal) helps maintain spin
 
 **Tuning Params:**
 | Param | Description |
 |-------|-------------|
-| `spinForce` | How much stick accelerates spin |
-| `spinDrag` | How fast spin decays (0.98 = slow decay) |
-| `centrifugalForce` | How much spin affects outward lean |
-| `releaseBoost` | Throw force multiplier |
+| `rotationSpeed` | Base rotation rate (before mass resistance) |
+| `massResistance` | How much target slows your rotation (weight) |
+| `tetherLength` | Distance target orbits |
+| `centrifugalPull` | How much spin pulls player toward target |
 
-### 5.4 Input Modes
+### 5.4 Input Model
 
-**Below Velocity Threshold (starting up):**
-| Stick Input | Effect |
-|-------------|--------|
-| Back-left/right | Pull, builds spin momentum |
-| Forward | Push/walk them (into hazard, off ledge) |
-| Forward-left/right | Reorient, pull them into line |
+**Continuous rotation:**
+- Circle your stick → continuously update desired facing → continuous rotation
+- The rotation drags the target, building tangential velocity
+- Stop circling → stop rotating → momentum persists but slowly decays
 
-Grappler drifts back slightly (shows weight).
-
-**Above Velocity Threshold (spinning fast):**
-| Stick Input | Effect |
-|-------------|--------|
-| Rotating same direction fast enough | Accelerate / maintain max |
-| Not rotating fast enough | Decelerate |
-
-When spin drops below threshold → return to directional mode.
-
-**Hold distance increases with velocity** (centrifuge effect).
+**Why this works:**
+- Not "tangent input = spin" (too abstracted)
+- Not "lean drives force" (didn't create momentum buildup)
+- Player rotation is physically grounded — you spin, they follow
 
 ### 5.5 Victim Options
 

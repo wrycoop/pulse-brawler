@@ -390,8 +390,8 @@ function update() {
       if (stickMag > 0.1) {
         // Stick angle (where stick points)
         const stickAngle = Math.atan2(input.y, input.x);
-        // Desired facing = opposite of stick
-        const desiredFacing = stickAngle + Math.PI;
+        // Desired facing = opposite of stick (back faces stick direction)
+        const desiredFacing = stickAngle;  // Face AWAY from stick = back toward stick
         
         // Calculate shortest rotation to desired facing
         let angleDiff = desiredFacing - grapple.playerFacing;
