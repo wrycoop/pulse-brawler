@@ -414,23 +414,24 @@ function update() {
       victim.vx = tangentX * tangentSpeed * 60;  // Scale for release
       victim.vy = tangentY * tangentSpeed * 60;
       
-      // === CENTRIFUGAL PULL ON PLAYER ===
-      // Proportional to angular velocity squared (spin faster = more pull)
-      const centrifugal = grapple.angularVel * grapple.angularVel * tetherLength * ((grp.centrifugalStrength ?? 50) / 5);
+      // === VISUAL WEIGHT: Player leans AWAY from target ===
+      // No force - just visual. Shows resistance to centrifugal pull.
+      const maxLean = tuning.lean?.maxLean ?? 20;
       const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
-      player.applyForce(pullDir.x * centrifugal, pullDir.y * centrifugal);
+      const playerLeanAmount = Math.min(Math.abs(grapple.angularVel) * 400, maxLean);
+      player.leanX = -pullDir.x * playerLeanAmount;  // Away from target
+      player.leanY = -pullDir.y * playerLeanAmount;
       
       // === VICTIM LEAN (outward from centrifugal) ===
-      const maxLean = tuning.lean?.maxLean ?? 20;
-      const leanAmount = Math.min(Math.abs(grapple.angularVel) * 500, maxLean);
-      victim.leanX = pullDir.x * leanAmount;
-      victim.leanY = pullDir.y * leanAmount;
+      const victimLeanAmount = Math.min(Math.abs(grapple.angularVel) * 500, maxLean);
+      victim.leanX = pullDir.x * victimLeanAmount;
+      victim.leanY = pullDir.y * victimLeanAmount;
       
       // Log every 30 frames
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        const msg = `angVel:${grapple.angularVel.toFixed(4)} torque:${torqueInput.toFixed(2)} angle:${(grapple.targetAngle * 180/Math.PI).toFixed(0)}°`;
+        const msg = `angVel:${grapple.angularVel.toFixed(4)} playerLean:(${player.leanX.toFixed(1)},${player.leanY.toFixed(1)})`;
         fetch('/console', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ level: 'log', args: [msg] }) }).catch(() => {});
       }
