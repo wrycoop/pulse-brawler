@@ -337,58 +337,44 @@ function update() {
       grapple.victimIdx = -1;
       grapple.holdFrames = 0;
     } else {
-      // Continue grapple - tether drag + lean-driven rotation
+      // Continue grapple - simple tether physics
       const victim = dummies[grapple.victimIdx];
       
       // Vector from player to victim
       const dx = victim.x - player.x;
       const dy = victim.y - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
-      if (dist < 0.1) return; // Avoid divide by zero
+      if (dist < 0.1) return;
       
-      const nx = dx / dist;  // Radial unit vector (outward)
+      const nx = dx / dist;
       const ny = dy / dist;
       
-      // === LEAN-DRIVEN ROTATION ===
-      // Player's stick input controls victim's lean
-      // Lean creates force, tether constrains it → becomes orbital force
-      const leanControl = (grp.leanControl ?? 70) / 100;  // 0-100 → 0-1
-      const maxLean = tuning.lean?.maxLean ?? 20;
-      const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
-      
-      // Apply player input to victim's lean
-      // Vertical alignment (|dy| > |dx|): X inverted
-      // Horizontal alignment (|dx| > |dy|): X same
-      const isVertical = Math.abs(dy) > Math.abs(dx);
-      const targetLeanX = input.x * (isVertical ? -1 : 1) * maxLean * leanControl;
-      const targetLeanY = input.y * maxLean * leanControl;
-      const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
-      victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
-      victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
-      
-      // Lean creates force on victim (same as normal movement)
-      victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
-      
       // === TETHER CONSTRAINT ===
-      // Hard constraint: keep victim within tether length
-      const maxTether = tetherLength;
-      
-      if (dist > maxTether) {
-        // Pull victim back to tether length
-        const excess = dist - maxTether;
-        victim.x -= nx * excess;
-        victim.y -= ny * excess;
+      // Victim can't be further than tether length from player
+      // Player movement drags them, they trail behind with inertia
+      if (dist > tetherLength) {
+        // Snap to tether length
+        victim.x = player.x + nx * tetherLength;
+        victim.y = player.y + ny * tetherLength;
         
-        // Remove outward velocity (can't stretch tether)
+        // Remove outward velocity (tether absorbs it)
         const radialVel = victim.vx * nx + victim.vy * ny;
         if (radialVel > 0) {
           victim.vx -= nx * radialVel;
           victim.vy -= ny * radialVel;
         }
         
-        // Counter-pull on player (weight feel)
-        const playerPullRatio = (grp.playerPull ?? 30) / 100;
-        player.applyForce(nx * excess * playerPullRatio, ny * excess * playerPullRatio);
+        // Counter-pull on player (weight)
+        const pull = (dist - tetherLength) * 0.3;
+        player.applyForce(nx * pull, ny * pull);
+      }
+      
+      // === VISUAL: Lean shows velocity ===
+      const speed = Math.sqrt(victim.vx * victim.vx + victim.vy * victim.vy);
+      const maxLean = tuning.lean?.maxLean ?? 20;
+      if (speed > 0.1) {
+        victim.leanX = (victim.vx / speed) * Math.min(speed * 3, maxLean);
+        victim.leanY = (victim.vy / speed) * Math.min(speed * 3, maxLean);
       }
     }
   } else {
