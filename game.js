@@ -428,13 +428,11 @@ function update() {
       victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
       
       // === TETHER CONSTRAINT (soft spring, no hard snap) ===
-      const dx = victim.x - player.x;
-      const dy = victim.y - player.y;
-      const dist = Math.sqrt(dx * dx + dy * dy);
+      // Reuse dx, dy, dist from above
+      const nx = dx / dist;
+      const ny = dy / dist;
       
       if (dist > 0.1) {
-        const nx = dx / dist;
-        const ny = dy / dist;
         
         // Spring force: pull victim toward tether length (not hard snap)
         const stretch = dist - tetherLength;
