@@ -382,7 +382,7 @@ function update() {
       // Continue grapple - lean control + tether constraint
       const victim = dummies[grapple.victimIdx];
       
-      // === PLAYER STICK → VICTIM LEAN (tether-relative) ===
+      // === PLAYER STICK → VICTIM LEAN (tether-relative, both axes inverted) ===
       const maxLean = tuning.lean?.maxLean ?? 20;
       const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
       const leanControl = (grp.leanControl ?? 80) / 100;
@@ -392,20 +392,25 @@ function update() {
       const dy = victim.y - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy) || 1;
       
-      // Radial (outward from player) and tangent (perpendicular, CCW) directions
+      // Radial (toward victim) and tangent (perpendicular) unit vectors
       const rx = dx / dist;
       const ry = dy / dist;
       const tx = -ry;  // tangent (perpendicular to radial)
       const ty = rx;
       
-      // Transform input: X → tangent (rotation), Y → radial (toward/away)
-      // Invert X so "my right" creates clockwise rotation
-      const tangentInput = -input.x;
-      const radialInput = -input.y;  // Pull back (negative Y) = pull toward = negative radial
+      // Project player input onto tether-relative axes
+      const myRadial = input.x * rx + input.y * ry;    // How much I'm leaning toward/away from them
+      const myTangent = input.x * tx + input.y * ty;   // How much I'm leaning sideways (perpendicular)
       
-      // Convert to screen-space lean
-      const targetLeanX = (tangentInput * tx + radialInput * rx) * maxLean * leanControl;
-      const targetLeanY = (tangentInput * ty + radialInput * ry) * maxLean * leanControl;
+      // INVERT both for victim's lean (facing each other)
+      // - I lean toward → they lean away
+      // - I lean my-left → they lean their-left (opposite world direction)
+      const theirRadial = -myRadial;
+      const theirTangent = -myTangent;
+      
+      // Convert back to world-space lean
+      const targetLeanX = (theirRadial * rx + theirTangent * tx) * maxLean * leanControl;
+      const targetLeanY = (theirRadial * ry + theirTangent * ty) * maxLean * leanControl;
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
       
@@ -413,7 +418,7 @@ function update() {
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        const msg = `in:(${input.x.toFixed(2)},${input.y.toFixed(2)}) tang:${tangentInput.toFixed(2)} rad:${radialInput.toFixed(2)} → lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
+        const msg = `myRad:${myRadial.toFixed(2)} myTan:${myTangent.toFixed(2)} → theirRad:${theirRadial.toFixed(2)} theirTan:${theirTangent.toFixed(2)} → lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
         fetch('/console', { method: 'POST', headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ level: 'log', args: [msg] }) }).catch(() => {});
       }
