@@ -219,21 +219,27 @@ function getInput() {
 function getAttackInput() {
   // Keyboard: I = □, J = △, L = ○
   // Gamepad: Square = □, Triangle = △, Circle = ○
-  const attacks = { tri: false, sq: false, cir: false };
+  // Returns both press (just pressed) and hold state
+  const pressed = { tri: false, sq: false, cir: false };
+  const held = { tri: false, sq: false, cir: false };
   
-  if (keysJustPressed['i']) attacks.sq = true;
-  if (keysJustPressed['j']) attacks.tri = true;
-  if (keysJustPressed['l']) attacks.cir = true;
+  if (keysJustPressed['i']) pressed.sq = true;
+  if (keysJustPressed['j']) pressed.tri = true;
+  if (keysJustPressed['l']) pressed.cir = true;
+  
+  if (keys['i']) held.sq = true;
+  if (keys['j']) held.tri = true;
+  if (keys['l']) held.cir = true;
   
   const gp = navigator.getGamepads()[0];
   if (gp) {
     // PS layout: 0=X, 1=O, 2=□, 3=△
-    if (gp.buttons[2]?.pressed) attacks.sq = true;
-    if (gp.buttons[3]?.pressed) attacks.tri = true;
-    if (gp.buttons[1]?.pressed) attacks.cir = true;
+    if (gp.buttons[2]?.pressed) { held.sq = true; if (!lastAttacks.sq) pressed.sq = true; }
+    if (gp.buttons[3]?.pressed) { held.tri = true; if (!lastAttacks.tri) pressed.tri = true; }
+    if (gp.buttons[1]?.pressed) { held.cir = true; if (!lastAttacks.cir) pressed.cir = true; }
   }
   
-  return attacks;
+  return { pressed, held };
 }
 
 // Game state
@@ -241,6 +247,13 @@ let player;
 let dummies = [];
 let lastAttacks = { tri: false, sq: false, cir: false };
 let attackVisuals = []; // { targetIdx, hit, timer }
+
+// Grapple state
+let grapple = {
+  active: false,
+  victimIdx: -1,
+  holdFrames: 0
+};
 
 function init() {
   player = new Fighter(CX, CY + 100, '#00ff88', '');
@@ -302,24 +315,124 @@ function doAttack(targetIdx) {
 
 function update() {
   const input = getInput();
-  const attacks = getAttackInput();
+  const { pressed, held } = getAttackInput();
+  
+  const grp = tuning.grapple || {};
+  const grappleRange = grp.range ?? 80;
+  const holdThreshold = grp.holdFrames ?? 10;
+  const spinForce = (grp.spinForce ?? 50) / 1000;    // 0-100 → 0-0.1 (tangent push)
+  const tetherLength = grp.tetherLength ?? 60;
+  
+  // Check for grapple initiation or release
+  const heldIdx = held.sq ? 0 : held.tri ? 1 : held.cir ? 2 : -1;
+  
+  if (grapple.active) {
+    // Check if still holding the grappled target's button
+    const stillHolding = (grapple.victimIdx === 0 && held.sq) ||
+                         (grapple.victimIdx === 1 && held.tri) ||
+                         (grapple.victimIdx === 2 && held.cir);
+    
+    if (!stillHolding) {
+      // Release - victim keeps their velocity, just let go
+      grapple.active = false;
+      grapple.victimIdx = -1;
+      grapple.holdFrames = 0;
+    } else {
+      // Continue grapple - spring physics
+      const victim = dummies[grapple.victimIdx];
+      
+      // Vector from player to victim
+      const dx = victim.x - player.x;
+      const dy = victim.y - player.y;
+      const dist = Math.sqrt(dx * dx + dy * dy);
+      if (dist < 0.1) return; // Avoid divide by zero
+      
+      const nx = dx / dist;  // Radial unit vector (outward)
+      const ny = dy / dist;
+      const tx = -ny;        // Tangent unit vector (CCW)
+      const ty = nx;
+      
+      // 1. Spring force: pull victim toward tether length
+      const springStiffness = (grp.springStiffness ?? 50) / 500;  // 0-100 → 0-0.2
+      const stretch = dist - tetherLength;
+      const springForce = stretch * springStiffness;
+      victim.applyForce(-nx * springForce, -ny * springForce);
+      
+      // 2. Player input → tangential force on victim (spin them)
+      const tangentInput = input.x * tx + input.y * ty;  // How much input is tangent
+      const tangentForce = tangentInput * spinForce * 10;
+      victim.applyForce(tx * tangentForce, ty * tangentForce);
+      
+      // 3. Dampen victim's radial velocity (keep them orbiting, not flying away)
+      const radialVel = victim.vx * nx + victim.vy * ny;
+      victim.vx -= nx * radialVel * 0.3;  // Remove 30% of radial velocity
+      victim.vy -= ny * radialVel * 0.3;
+      
+      // 4. Lean responds to centripetal acceleration (lean outward when spinning fast)
+      const tangentVel = victim.vx * tx + victim.vy * ty;
+      const centrifugalLean = Math.abs(tangentVel) * 0.5;
+      victim.leanX = nx * centrifugalLean;
+      victim.leanY = ny * centrifugalLean;
+    }
+  } else {
+    // Not grappling - check for initiation
+    if (heldIdx >= 0) {
+      grapple.holdFrames++;
+      
+      if (grapple.holdFrames >= holdThreshold) {
+        // Check range
+        const target = dummies[heldIdx];
+        const dx = target.x - player.x;
+        const dy = target.y - player.y;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+        
+        if (dist < grappleRange + player.baseRadius + target.baseRadius) {
+          // Initiate grapple
+          grapple.active = true;
+          grapple.victimIdx = heldIdx;
+        }
+      }
+    } else {
+      grapple.holdFrames = 0;
+    }
+    
+    // Attack on press (if not starting grapple)
+    if (grapple.holdFrames < holdThreshold) {
+      if (pressed.sq) doAttack(0);
+      if (pressed.tri) doAttack(1);
+      if (pressed.cir) doAttack(2);
+    }
+  }
+  
+  lastAttacks = { sq: held.sq, tri: held.tri, cir: held.cir };
   
   player.update(input.x, input.y);
   player.constrainToArena();
   
-  // Attack on press (not hold)
-  if (attacks.sq && !lastAttacks.sq) doAttack(0);
-  if (attacks.tri && !lastAttacks.tri) doAttack(1);
-  if (attacks.cir && !lastAttacks.cir) doAttack(2);
-  lastAttacks = { ...attacks };
-  
   // Update dummies
-  for (const d of dummies) {
-    d.update(0, 0); // No input - just physics
+  for (let i = 0; i < dummies.length; i++) {
+    const d = dummies[i];
+    
+    // Skip lean/movement update if grappled (we control their lean)
+    if (grapple.active && grapple.victimIdx === i) {
+      // Still apply friction to velocity
+      const friction = 0.85 + ((tuning.lean?.friction ?? 50) / 100) * 0.14;
+      d.vx *= friction;
+      d.vy *= friction;
+      d.x += d.vx;
+      d.y += d.vy;
+    } else {
+      d.update(0, 0); // No input - just physics
+    }
     
     if (d.isOut()) {
       console.log('RING OUT!');
       d.respawn();
+      // Release grapple if victim rings out
+      if (grapple.active && grapple.victimIdx === i) {
+        grapple.active = false;
+        grapple.victimIdx = -1;
+      }
     }
   }
   
@@ -391,6 +504,19 @@ function draw() {
   
   // Dummies
   for (const d of dummies) d.draw(ctx);
+  
+  // Grapple tether
+  if (grapple.active) {
+    const victim = dummies[grapple.victimIdx];
+    ctx.strokeStyle = '#ffff00';
+    ctx.lineWidth = 3;
+    ctx.setLineDash([5, 5]);
+    ctx.beginPath();
+    ctx.moveTo(player.x, player.y);
+    ctx.lineTo(victim.x, victim.y);
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
   
   // Attack limbs (drawn from player's current position)
   const range = tuning.attack?.range ?? 80;
