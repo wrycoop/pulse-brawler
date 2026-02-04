@@ -242,8 +242,9 @@ function getAttackInput() {
   return { pressed, held };
 }
 
-// Screenshot capture - press P or Share button (gamepad button 8)
+// Screenshot capture - press P or L1
 let lastScreenshot = false;
+let screenshotFlash = 0;  // frames to show flash
 function checkScreenshot() {
   let shouldCapture = false;
   
@@ -258,6 +259,7 @@ function checkScreenshot() {
   lastScreenshot = l1Pressed || false;
   
   if (shouldCapture) {
+    screenshotFlash = 30;  // show for 30 frames
     const image = canvas.toDataURL('image/png');
     fetch('/screenshot', {
       method: 'POST',
@@ -266,6 +268,18 @@ function checkScreenshot() {
     }).then(r => r.json()).then(data => {
       console.log('Screenshot saved:', data.filename);
     }).catch(e => console.error('Screenshot failed:', e));
+  }
+}
+
+function drawScreenshotFlash() {
+  if (screenshotFlash > 0) {
+    ctx.fillStyle = `rgba(255, 255, 255, ${screenshotFlash / 30 * 0.5})`;
+    ctx.fillRect(0, 0, W, H);
+    ctx.fillStyle = '#00ff00';
+    ctx.font = 'bold 24px sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('📸 SCREENSHOT SAVED', W/2, 50);
+    screenshotFlash--;
   }
 }
 
@@ -589,7 +603,10 @@ function draw() {
   // Controls hint
   ctx.fillStyle = '#666';
   ctx.font = '12px monospace';
-  ctx.fillText('Left stick = move | Face buttons = attack target', 10, H - 10);
+  ctx.fillText('Left stick = move | Face buttons = attack target | L1 = screenshot', 10, H - 10);
+  
+  // Screenshot flash
+  drawScreenshotFlash();
 }
 
 function loop() {
