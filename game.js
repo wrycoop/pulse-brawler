@@ -357,7 +357,8 @@ function update() {
       const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
       
       // Apply player input to victim's lean
-      const targetLeanX = input.x * maxLean * leanControl;
+      // Lateral (X) = opposite, Toward/away (Y) = mirror (screen space)
+      const targetLeanX = -input.x * maxLean * leanControl;
       const targetLeanY = input.y * maxLean * leanControl;
       const leanSpeed = 0.02 + ((tuning.lean?.leanSpeed ?? 50) / 100) * 0.18;
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
