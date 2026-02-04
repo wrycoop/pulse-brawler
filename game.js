@@ -414,13 +414,20 @@ function update() {
       victim.vx = tangentX * tangentSpeed * 60;  // Scale for release
       victim.vy = tangentY * tangentSpeed * 60;
       
-      // === VISUAL WEIGHT: Player leans AWAY from target ===
+      // === VISUAL WEIGHT: Player leans IN stick direction ===
       // No force - just visual. Shows resistance to centrifugal pull.
       const maxLean = tuning.lean?.maxLean ?? 20;
       const pullDir = { x: Math.cos(grapple.targetAngle), y: Math.sin(grapple.targetAngle) };
       const playerLeanAmount = Math.min(Math.abs(grapple.angularVel) * 400, maxLean);
-      player.leanX = -pullDir.x * playerLeanAmount;  // Away from target
-      player.leanY = -pullDir.y * playerLeanAmount;
+      // Lean toward stick direction (which is away from target)
+      const stickMag = Math.sqrt(input.x * input.x + input.y * input.y);
+      if (stickMag > 0.1) {
+        player.leanX = input.x * playerLeanAmount / stickMag;
+        player.leanY = input.y * playerLeanAmount / stickMag;
+      } else {
+        player.leanX = -pullDir.x * playerLeanAmount;  // Fallback: away from target
+        player.leanY = -pullDir.y * playerLeanAmount;
+      }
       
       // === VICTIM LEAN (outward from centrifugal) ===
       const victimLeanAmount = Math.min(Math.abs(grapple.angularVel) * 500, maxLean);
