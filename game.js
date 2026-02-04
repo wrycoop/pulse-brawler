@@ -395,40 +395,49 @@ function update() {
       victim.leanX += (targetLeanX - victim.leanX) * leanSpeed;
       victim.leanY += (targetLeanY - victim.leanY) * leanSpeed;
       
-      // Log lean values every 30 frames
+      // Log lean values every 30 frames (send to server)
       if (!grapple.logCounter) grapple.logCounter = 0;
       grapple.logCounter++;
       if (grapple.logCounter % 30 === 0) {
-        console.log(`[GRAPPLE] input:(${input.x.toFixed(2)},${input.y.toFixed(2)}) → target:(${targetLeanX.toFixed(1)},${targetLeanY.toFixed(1)}) → victim.lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) | victim.vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`);
+        const msg = `input:(${input.x.toFixed(2)},${input.y.toFixed(2)}) → target:(${targetLeanX.toFixed(1)},${targetLeanY.toFixed(1)}) → victim.lean:(${victim.leanX.toFixed(1)},${victim.leanY.toFixed(1)}) | vel:(${victim.vx.toFixed(2)},${victim.vy.toFixed(2)})`;
+        fetch('/console', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ level: 'log', args: [msg] })
+        }).catch(() => {});
       }
       
       // === LEAN → FORCE (same as movement physics) ===
       const moveForce = 0.005 + ((tuning.lean?.moveForce ?? 50) / 100) * 0.045;
       victim.applyForce(victim.leanX * moveForce, victim.leanY * moveForce);
       
-      // === TETHER CONSTRAINT ===
+      // === TETHER CONSTRAINT (soft spring, no hard snap) ===
       const dx = victim.x - player.x;
       const dy = victim.y - player.y;
       const dist = Math.sqrt(dx * dx + dy * dy);
       
-      if (dist > tetherLength && dist > 0.1) {
+      if (dist > 0.1) {
         const nx = dx / dist;
         const ny = dy / dist;
         
-        // Snap victim to tether length
-        victim.x = player.x + nx * tetherLength;
-        victim.y = player.y + ny * tetherLength;
-        
-        // Remove outward velocity component (tether catches it)
-        const radialVel = victim.vx * nx + victim.vy * ny;
-        if (radialVel > 0) {
-          victim.vx -= nx * radialVel;
-          victim.vy -= ny * radialVel;
+        // Spring force: pull victim toward tether length (not hard snap)
+        const stretch = dist - tetherLength;
+        if (stretch > 0) {
+          const springStrength = (grp.springStrength ?? 60) / 100;  // 0-100 → 0-1
+          victim.applyForce(-nx * stretch * springStrength, -ny * stretch * springStrength);
+          
+          // Counter-pull on player (weight feel)
+          const pullStrength = (grp.playerPull ?? 30) / 100;
+          player.applyForce(nx * stretch * pullStrength, ny * stretch * pullStrength);
         }
         
-        // Counter-pull on player (weight feel)
-        const pullStrength = (grp.playerPull ?? 40) / 100;
-        player.applyForce(nx * (dist - tetherLength) * pullStrength, ny * (dist - tetherLength) * pullStrength);
+        // Dampen radial velocity only (preserve tangent = orbit)
+        const radialVel = victim.vx * nx + victim.vy * ny;
+        if (radialVel > 0) {
+          const radialDamping = 0.7;  // Remove 30% of outward velocity
+          victim.vx -= nx * radialVel * (1 - radialDamping);
+          victim.vy -= ny * radialVel * (1 - radialDamping);
+        }
       }
     }
   } else {
